@@ -11,6 +11,7 @@ import StockPanel from '../features/data/StockPanelV2';
 import PricesPanel from '../features/data/PricesPanelV2';
 import WarehouseMapPanel from '../features/data/WarehouseMapPanelV2';
 import CorrectionsPanel from '../features/data/CorrectionsPanel';
+import InventoryHistory from '../features/history/InventoryHistory';
 import Dashboard from '../features/dashboard/Dashboard';
 import UserPanel from '../features/admin/UserPanel';
 
@@ -116,7 +117,7 @@ export default function AppRoutes() {
   element={
     <ProtectedRoute>
       <RoleRoute permission="history">
-        <CorrectionsPanel />
+        <InventoryHistory />
       </RoleRoute>
     </ProtectedRoute>
   }

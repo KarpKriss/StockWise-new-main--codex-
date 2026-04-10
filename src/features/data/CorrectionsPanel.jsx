@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { exportToCSV } from "../../utils/csvExport";
-import { fetchCorrectionRows } from "../../core/api/dataSectionApi";
+import { fetchCorrectionRowsWithProblems } from "../../core/api/correctionRowsApi";
 
 export default function CorrectionsPanel() {
   const [rows, setRows] = useState([]);
@@ -16,7 +16,7 @@ export default function CorrectionsPanel() {
     async function loadRows() {
       try {
         setLoading(true);
-        setRows(await fetchCorrectionRows());
+        setRows(await fetchCorrectionRowsWithProblems());
         setError("");
       } catch (err) {
         setError(err.message || "Błąd pobierania historii korekt");

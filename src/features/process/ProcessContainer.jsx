@@ -1,5 +1,6 @@
 import ProcessStart from './ProcessStart.jsx';
 import ProcessFlow from './ProcessFlowV2.jsx';
+import EmptyLocationProcess from './EmptyLocationProcess.jsx';
 import { useSession } from '../../core/session/AppSession';
 
 export default function ProcessContainer() {
@@ -10,6 +11,8 @@ export default function ProcessContainer() {
   if (!session) return <ProcessStart />;
 
 if (!processType) return <ProcessStart />;
+
+if (processType === "empty") return <EmptyLocationProcess />;
 
 return <ProcessFlow />;
 }

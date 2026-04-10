@@ -12,9 +12,11 @@ export default function SessionGate({ children }) {
 
   // 🔵 RECOVERY SCREEN
   if (pendingSession) {
+    const isPaused = String(pendingSession.status || "").toLowerCase() === "paused";
+
     return (
       <div style={styles.fullscreen}>
-        <h2>Wykryto niedokończoną sesję</h2>
+        <h2>{isPaused ? "Wykryto wstrzymana sesje" : "Wykryto niedokończoną sesję"}</h2>
 
         <p>
           Sesja rozpoczęta: {new Date(pendingSession.created_at).toLocaleString()}

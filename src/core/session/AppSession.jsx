@@ -4,6 +4,8 @@ import { logEvent } from "../api/auditApi";
 import {
   startSession as apiStartSession,
   endSession as apiEndSession,
+  pauseSession as apiPauseSession,
+  resumePausedSession as apiResumePausedSession,
   updateSessionHeartbeat,
   getActiveSession,
 } from "../api/sessionApi";
@@ -20,7 +22,7 @@ export function SessionProvider({ children }) {
   const [pendingSession, setPendingSession] = useState(null);
   const [sessionConflict, setSessionConflict] = useState(false);
 
-  const activeSessionId = session?.session_id || pendingSession?.id || null;
+  const activeSessionId = session?.session_id || null;
 
   useEffect(() => {
     let cancelled = false;
@@ -149,15 +151,27 @@ export function SessionProvider({ children }) {
     }
   };
 
-  const resumeSession = () => {
+  const resumeSession = async () => {
     if (!pendingSession) return;
 
-    setSession({
-      session_id: pendingSession.id,
-      operations: [],
-      ...pendingSession,
-    });
-    setPendingSession(null);
+    try {
+      const shouldResumeInDb =
+        String(pendingSession.status || "").toLowerCase() === "paused";
+
+      const nextSession = shouldResumeInDb
+        ? await apiResumePausedSession(pendingSession.id)
+        : pendingSession;
+
+      setSession({
+        session_id: nextSession.id,
+        operations: [],
+        ...nextSession,
+      });
+      setPendingSession(null);
+    } catch (error) {
+      console.error("RESUME SESSION ERROR:", error);
+      throw error;
+    }
   };
 
   const discardSession = async () => {
@@ -184,6 +198,25 @@ export function SessionProvider({ children }) {
   const logoutAfterConflict = async () => {
     setSessionConflict(false);
     await forceLogout("CONFLICT");
+  };
+
+  const pauseSession = async () => {
+    if (!session?.session_id) return;
+
+    try {
+      const paused = await apiPauseSession(session.session_id);
+
+      setPendingSession(paused || {
+        ...session,
+        id: session.session_id,
+        status: "paused",
+      });
+      setSession(null);
+      setProcessType(null);
+    } catch (error) {
+      console.error("PAUSE SESSION FLOW ERROR:", error);
+      throw error;
+    }
   };
 
   const addOperation = (operation) => {
@@ -253,6 +286,7 @@ export function SessionProvider({ children }) {
       session,
       startSession,
       endSession,
+      pauseSession,
       isActive: Boolean(session?.session_id),
       loading,
       pendingSession,

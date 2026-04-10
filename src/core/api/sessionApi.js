@@ -27,7 +27,7 @@ export async function startSession(payload) {
       ended_at: new Date().toISOString(),
     })
     .eq('user_id', payload.user_id)
-    .eq('status', 'active');
+    .in('status', ['active', 'ACTIVE', 'paused', 'PAUSED']);
 
   if (closeError) {
     console.error('CLOSE OLD SESSION ERROR:', closeError);
@@ -62,6 +62,14 @@ export async function startSession(payload) {
 export async function endSession(session_id) {
   await cleanupSessions();
 
+  const rpcResult = await supabase.rpc('end_work_session', {
+    p_session_id: session_id,
+  });
+
+  if (!rpcResult.error) {
+    return { success: true };
+  }
+
   const { error } = await supabase
     .from('sessions')
     .update({
@@ -69,7 +77,7 @@ export async function endSession(session_id) {
       ended_at: new Date().toISOString(),
     })
     .eq('id', session_id)
-    .eq('status', 'active'); // 🔥 tylko aktywna
+    .in('status', ['active', 'ACTIVE', 'paused', 'PAUSED']);
 
   if (error) {
     console.error('END SESSION ERROR:', error);
@@ -79,10 +87,74 @@ export async function endSession(session_id) {
   return { success: true };
 }
 
+export async function pauseSession(session_id) {
+  const { data, error } = await supabase.rpc('pause_work_session', {
+    p_session_id: session_id,
+  });
+
+  if (!error) {
+    return data;
+  }
+
+  const fallback = await supabase
+    .from('sessions')
+    .update({
+      status: 'paused',
+      last_activity: new Date().toISOString(),
+    })
+    .eq('id', session_id)
+    .in('status', ['active', 'ACTIVE'])
+    .select()
+    .maybeSingle();
+
+  if (fallback.error) {
+    console.error('PAUSE SESSION ERROR:', error || fallback.error);
+    throw new Error('Blad pauzowania sesji');
+  }
+
+  return fallback.data;
+}
+
+export async function resumePausedSession(session_id) {
+  const { data, error } = await supabase.rpc('resume_work_session', {
+    p_session_id: session_id,
+  });
+
+  if (!error) {
+    return data;
+  }
+
+  const fallback = await supabase
+    .from('sessions')
+    .update({
+      status: 'active',
+      last_activity: new Date().toISOString(),
+    })
+    .eq('id', session_id)
+    .in('status', ['paused', 'PAUSED'])
+    .select()
+    .maybeSingle();
+
+  if (fallback.error) {
+    console.error('RESUME SESSION ERROR:', error || fallback.error);
+    throw new Error('Blad wznawiania sesji');
+  }
+
+  return fallback.data;
+}
+
 /**
  * 🔥 HEARTBEAT (tylko jeśli session nadal active)
  */
 export async function updateSessionHeartbeat(session_id) {
+  const rpcResult = await supabase.rpc('touch_work_session', {
+    p_session_id: session_id,
+  });
+
+  if (!rpcResult.error) {
+    return { success: true };
+  }
+
   const { error } = await supabase
     .from('sessions')
     .update({
@@ -141,7 +213,9 @@ export async function getActiveSession(user_id) {
     .from('sessions')
     .select('*')
     .eq('user_id', user_id)
-    .eq('status', 'active')
+    .in('status', ['active', 'ACTIVE', 'paused', 'PAUSED'])
+    .order('started_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) {

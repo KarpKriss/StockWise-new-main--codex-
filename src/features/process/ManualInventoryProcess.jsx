@@ -41,7 +41,7 @@ function isValidIsoDate(value) {
 export default function ManualInventoryProcess() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { session, isActive, addOperation, endSession } = useSession();
+  const { session, isActive, addOperation, endSession, pauseSession } = useSession();
   const [config, setConfig] = useState(null);
   const [stage, setStage] = useState("location");
   const [locationInput, setLocationInput] = useState("");
@@ -420,6 +420,12 @@ export default function ManualInventoryProcess() {
     navigate("/menu");
   }
 
+  async function handlePauseSession() {
+    await handleAbandonLocation();
+    await pauseSession();
+    navigate("/menu");
+  }
+
   if (!session?.session_id || !isActive) {
     return <div className="screen-title">Brak aktywnej sesji</div>;
   }
@@ -585,6 +591,9 @@ export default function ManualInventoryProcess() {
       )}
 
       <div style={{ display: "flex", gap: 12, marginTop: 32 }}>
+        <button className="btn-secondary full" disabled={submitting} onClick={handlePauseSession}>
+          Wstrzymaj prace
+        </button>
         <button className="btn-secondary full" disabled={submitting} onClick={handleEndSession}>
           Zakoncz sesje
         </button>

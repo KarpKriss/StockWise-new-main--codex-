@@ -1,15 +1,14 @@
 import { supabase } from "./supabaseClient";
 
 export async function fetchCorrectionRowsWithProblems() {
-  const [correctionsResult, problemsResult] = await Promise.all([
+  const [correctionsResult, issuesResult] = await Promise.all([
     supabase
       .from("correction_log")
       .select("id, entry_id, user_id, reason, old_value, new_value, created_at")
       .order("created_at", { ascending: false }),
     supabase
-      .from("entries")
-      .select("id, user_id, operator, location, type, lot, created_at, timestamp")
-      .eq("type", "problem")
+      .from("empty_location_issues")
+      .select("id, user_id, zone, issue_type, note, status, created_at, location_id")
       .order("created_at", { ascending: false }),
   ]);
 
@@ -18,27 +17,28 @@ export async function fetchCorrectionRowsWithProblems() {
     throw new Error("Blad pobierania historii korekt");
   }
 
-  if (problemsResult.error) {
-    console.warn("FETCH PROBLEM REPORTS ERROR:", problemsResult.error);
+  if (issuesResult.error) {
+    console.warn("FETCH EMPTY LOCATION ISSUES ERROR:", issuesResult.error);
   }
 
   const correctionRows = correctionsResult.data || [];
-  const problemRows = (problemsResult.data || []).map((row) => ({
-    id: `problem-${row.id}`,
+  const issueRows = (issuesResult.data || []).map((row) => ({
+    id: `issue-${row.id}`,
     entry_id: row.id,
-    user_id: row.user_id || row.operator || "BRAK",
-    reason: row.lot || "Zgloszony problem",
+    user_id: row.user_id || "BRAK",
+    reason: row.issue_type || "Zgloszony problem",
     old_value: {
-      location: row.location,
-      type: row.type,
+      location_id: row.location_id,
+      zone: row.zone,
     },
     new_value: {
-      status: "problem_reported",
+      status: row.status || "open",
+      note: row.note || null,
     },
-    created_at: row.created_at || row.timestamp,
+    created_at: row.created_at,
   }));
 
-  return [...problemRows, ...correctionRows].sort(
+  return [...issueRows, ...correctionRows].sort(
     (left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
   );
 }

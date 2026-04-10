@@ -1,50 +1,48 @@
 import { supabase } from "./supabaseClient";
 
-function applySiteFilter(query, siteId) {
-  if (!siteId) {
-    return query;
+function normalizeUuidLike(value) {
+  const normalized = String(value || "").trim();
+
+  if (!normalized) {
+    return null;
   }
 
-  return query.eq("site_id", siteId);
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  return uuidRegex.test(normalized) ? normalized : null;
 }
 
-function isMissingColumnError(error, columnName) {
-  const message = String(error?.message || "").toLowerCase();
-  const details = String(error?.details || "").toLowerCase();
-
-  return message.includes(columnName.toLowerCase()) || details.includes(columnName.toLowerCase());
-}
-
-async function insertAuditEntry(payload) {
-  const { error } = await supabase.from("entries").insert([payload]);
-
-  if (error) {
-    console.warn("EMPTY PROCESS AUDIT INSERT ERROR:", error);
-    return false;
+function unwrapRpcRows(data) {
+  if (Array.isArray(data)) {
+    return data;
   }
 
-  return true;
+  if (!data) {
+    return [];
+  }
+
+  return Array.isArray(data.data) ? data.data : [];
 }
 
 export async function fetchEmptyLocationZones({ siteId } = {}) {
-  let query = supabase.from("locations").select("zone, status, site_id");
-  query = applySiteFilter(query, siteId);
+  const safeSiteId = normalizeUuidLike(siteId);
 
-  const { data, error } = await query;
+  const { data, error } = await supabase.rpc("get_empty_location_zones", {
+    p_site_id: safeSiteId,
+  });
 
   if (error) {
-    console.error("FETCH EMPTY ZONES ERROR:", error);
-    throw new Error("Blad pobierania stref");
+    console.error("FETCH EMPTY ZONES RPC ERROR:", error);
+    throw new Error(error.message || "Blad pobierania stref");
   }
 
-  const zones = [...new Set(
-    (data || [])
-      .filter((row) => String(row.status || "").toLowerCase() === "active")
-      .map((row) => String(row.zone || "").trim())
-      .filter(Boolean)
-  )];
+  const rows = unwrapRpcRows(data);
+  const zones = rows
+    .map((row) => String(row.zone || "").trim())
+    .filter(Boolean);
 
-  return zones.sort((left, right) => left.localeCompare(right));
+  return [...new Set(zones)].sort((left, right) => left.localeCompare(right));
 }
 
 export async function fetchEmptyLocationsForZone({ zone, siteId } = {}) {
@@ -52,66 +50,44 @@ export async function fetchEmptyLocationsForZone({ zone, siteId } = {}) {
     return [];
   }
 
-  let locationsQuery = supabase
-    .from("locations")
-    .select("id, code, zone, status, locked_by, locked_at, site_id")
-    .eq("zone", zone);
+  const safeSiteId = normalizeUuidLike(siteId);
+  const { data, error } = await supabase.rpc("get_empty_locations_for_zone", {
+    p_zone: zone,
+    p_site_id: safeSiteId,
+  });
 
-  locationsQuery = applySiteFilter(locationsQuery, siteId);
-
-  const [{ data: locations, error: locationsError }, { data: stock, error: stockError }] =
-    await Promise.all([
-      locationsQuery,
-      supabase.from("stock").select("location_id"),
-    ]);
-
-  if (locationsError) {
-    console.error("FETCH EMPTY LOCATIONS ERROR:", locationsError);
-    throw new Error("Blad pobierania lokalizacji");
+  if (error) {
+    console.error("FETCH EMPTY LOCATIONS RPC ERROR:", error);
+    throw new Error(error.message || "Blad pobierania lokalizacji");
   }
 
-  if (stockError) {
-    console.error("FETCH STOCK FOR EMPTY LOCATIONS ERROR:", stockError);
-    throw new Error("Blad pobierania stocku");
-  }
-
-  const occupiedLocationIds = new Set(
-    (stock || []).map((row) => row.location_id).filter(Boolean)
+  return unwrapRpcRows(data).sort((left, right) =>
+    String(left.code || "").localeCompare(String(right.code || ""))
   );
-
-  return (locations || [])
-    .filter((row) => String(row.status || "").toLowerCase() === "active")
-    .filter((row) => !occupiedLocationIds.has(row.id))
-    .sort((left, right) => String(left.code || "").localeCompare(String(right.code || "")));
 }
 
 export async function markLocationOnWork({ locationId, userId }) {
-  const payload = {
-    status: "On work",
-    locked_by: userId || null,
-    locked_at: new Date().toISOString(),
-  };
-
-  const { error } = await supabase.from("locations").update(payload).eq("id", locationId);
+  const { data, error } = await supabase.rpc("start_empty_location_work", {
+    p_location_id: locationId,
+    p_user_id: userId,
+  });
 
   if (error) {
-    console.error("MARK LOCATION ON WORK ERROR:", error);
-    throw new Error("Nie udalo sie zablokowac lokalizacji");
+    console.error("MARK LOCATION ON WORK RPC ERROR:", error);
+    throw new Error(error.message || "Nie udalo sie zablokowac lokalizacji");
   }
+
+  return data;
 }
 
-export async function releaseLocationWork({ locationId, status = "active" }) {
-  const payload = {
-    status,
-    locked_by: null,
-    locked_at: null,
-  };
-
-  const { error } = await supabase.from("locations").update(payload).eq("id", locationId);
+export async function releaseLocationWork({ locationId }) {
+  const { error } = await supabase.rpc("release_empty_location_work", {
+    p_location_id: locationId,
+  });
 
   if (error) {
-    console.error("RELEASE LOCATION WORK ERROR:", error);
-    throw new Error("Nie udalo sie odblokowac lokalizacji");
+    console.error("RELEASE LOCATION WORK RPC ERROR:", error);
+    throw new Error(error.message || "Nie udalo sie odblokowac lokalizacji");
   }
 }
 
@@ -121,49 +97,18 @@ export async function confirmEmptyLocation({
   sessionId,
   zone,
 }) {
-  const now = new Date().toISOString();
-  const updateWithGap = {
-    status: "active",
-    locked_by: null,
-    locked_at: null,
-    last_gap_inventory: now,
-  };
-
-  let updateError = null;
-  let { error } = await supabase.from("locations").update(updateWithGap).eq("id", location.id);
-  updateError = error;
-
-  if (updateError && isMissingColumnError(updateError, "last_gap_inventory")) {
-    const fallback = await supabase
-      .from("locations")
-      .update({
-        status: "active",
-        locked_by: null,
-        locked_at: null,
-      })
-      .eq("id", location.id);
-
-    updateError = fallback.error;
-  }
-
-  if (updateError) {
-    console.error("CONFIRM EMPTY LOCATION ERROR:", updateError);
-    throw new Error("Nie udalo sie potwierdzic pustej lokalizacji");
-  }
-
-  await insertAuditEntry({
-    session_id: sessionId,
-    operator: user?.email || null,
-    location: location.code,
-    type: "pusta_lokalizacja",
-    quantity: 0,
-    operation_id: crypto.randomUUID(),
-    user_id: user?.id || null,
-    site_id: user?.site_id || null,
-    confirmed: true,
-    timestamp: now,
-    lot: zone || null,
+  const { error } = await supabase.rpc("confirm_empty_location", {
+    p_location_id: location.id,
+    p_session_id: sessionId,
+    p_user_id: user?.id || null,
+    p_operator_email: user?.email || null,
+    p_zone: zone || null,
   });
+
+  if (error) {
+    console.error("CONFIRM EMPTY LOCATION RPC ERROR:", error);
+    throw new Error(error.message || "Nie udalo sie potwierdzic pustej lokalizacji");
+  }
 }
 
 export async function reportLocationProblem({
@@ -173,46 +118,18 @@ export async function reportLocationProblem({
   zone,
   reason,
 }) {
-  const now = new Date().toISOString();
-
-  const correctionPayload = {
-    entry_id: null,
-    user_id: user?.id || null,
-    reason,
-    old_value: {
-      zone,
-      location: location.code,
-      status: "On work",
-    },
-    new_value: {
-      zone,
-      location: location.code,
-      status: "problem_reported",
-    },
-    created_at: now,
-  };
-
-  const correctionResult = await supabase.from("correction_log").insert([correctionPayload]);
-
-  if (correctionResult.error) {
-    console.warn("PROBLEM REPORT INSERT TO CORRECTION LOG ERROR:", correctionResult.error);
-  }
-
-  await insertAuditEntry({
-    session_id: sessionId,
-    operator: user?.email || null,
-    location: location.code,
-    type: "problem",
-    quantity: 0,
-    operation_id: crypto.randomUUID(),
-    user_id: user?.id || null,
-    site_id: user?.site_id || null,
-    confirmed: true,
-    timestamp: now,
-    lot: reason,
-    ean: null,
-    sku: null,
+  const { error } = await supabase.rpc("report_empty_location_issue", {
+    p_location_id: location.id,
+    p_session_id: sessionId,
+    p_user_id: user?.id || null,
+    p_operator_email: user?.email || null,
+    p_zone: zone || null,
+    p_issue_type: reason,
+    p_note: null,
   });
 
-  await releaseLocationWork({ locationId: location.id, status: "active" });
+  if (error) {
+    console.error("REPORT EMPTY LOCATION ISSUE RPC ERROR:", error);
+    throw new Error(error.message || "Nie udalo sie zapisac problemu");
+  }
 }

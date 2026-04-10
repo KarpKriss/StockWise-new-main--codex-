@@ -13,7 +13,12 @@ import WarehouseMapPanel from '../features/data/WarehouseMapPanelV2';
 import CorrectionsPanel from '../features/data/CorrectionsPanelModern';
 import InventoryHistory from '../features/history/InventoryHistoryModern';
 import Dashboard from '../features/dashboard/DashboardScreen';
-import UserPanel from '../features/admin/UserPanel';
+import SettingsHome from '../features/admin/SettingsHome';
+import UserPanel from '../features/admin/UserPanelModern';
+import ProcessConfigPanel from '../features/admin/ProcessConfigPanel';
+import ImportExportPanel from '../features/admin/ImportExportPanel';
+import LogsPanel from '../features/admin/LogsPanel';
+import SystemStatus from '../features/admin/SystemStatusModern';
 
 export default function AppRoutes() {
   return (
@@ -150,7 +155,62 @@ export default function AppRoutes() {
   element={
     <ProtectedRoute>
       <RoleRoute permission="admin">
+        <SettingsHome />
+      </RoleRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/admin/users"
+  element={
+    <ProtectedRoute>
+      <RoleRoute permission="admin">
         <UserPanel />
+      </RoleRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/admin/process-config"
+  element={
+    <ProtectedRoute>
+      <RoleRoute permission="admin">
+        <ProcessConfigPanel />
+      </RoleRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/admin/import-export"
+  element={
+    <ProtectedRoute>
+      <RoleRoute permission="admin">
+        <ImportExportPanel />
+      </RoleRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/admin/logs"
+  element={
+    <ProtectedRoute>
+      <RoleRoute permission="admin">
+        <LogsPanel />
+      </RoleRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/admin/statuses"
+  element={
+    <ProtectedRoute>
+      <RoleRoute permission="admin">
+        <SystemStatus />
       </RoleRoute>
     </ProtectedRoute>
   }

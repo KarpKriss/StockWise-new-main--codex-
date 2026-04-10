@@ -65,6 +65,11 @@ const menuItems = [
     path: '/dashboard',
     permission: 'dashboard',
   },
+  {
+    label: 'Ustawienia',
+    path: '/admin',
+    permission: 'admin',
+  },
 ];
 
 const filteredMenu = menuItems.filter((item) =>
@@ -120,6 +125,7 @@ const filteredMenu = menuItems.filter((item) =>
                   {item.label === 'Historia' && 'Wyniki inwentaryzacji i przeglad operacji'}
                   {item.label === 'Dane' && 'Referencje, importy i historia zmian'}
                   {item.label === 'Statystyki' && 'Metryki, tempo pracy i dane finansowe'}
+                  {item.label === 'Ustawienia' && 'Panel administracyjny, konfiguracja i statusy'}
                 </div>
               </div>
             </button>

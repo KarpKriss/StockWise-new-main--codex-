@@ -25,6 +25,11 @@ function unwrapRpcRows(data) {
   return Array.isArray(data.data) ? data.data : [];
 }
 
+function isLocationReadyStatus(status) {
+  const normalized = String(status || "").toLowerCase();
+  return normalized === "active" || normalized === "pending";
+}
+
 export async function fetchEmptyLocationZones({ siteId } = {}) {
   const safeSiteId = normalizeUuidLike(siteId);
   let zonesResult = await supabase.rpc("get_empty_location_zones", {
@@ -50,7 +55,7 @@ export async function fetchEmptyLocationZones({ siteId } = {}) {
 
   const rows = unwrapRpcRows(zonesResult.data);
   const zones = rows
-    .filter((row) => String(row.status || "").toLowerCase() === "active" || !("status" in row))
+    .filter((row) => isLocationReadyStatus(row.status) || !("status" in row))
     .map((row) => String(row.zone || "").trim())
     .filter(Boolean);
 
@@ -81,7 +86,7 @@ export async function fetchEmptyLocationsForZone({ zone, siteId } = {}) {
       .from("locations")
       .select("id, code, zone, status, locked_by, locked_at, site_id")
       .eq("zone", zone)
-      .eq("status", "active")
+      .in("status", ["active", "pending"])
       .order("code", { ascending: true })
       .range(offset, offset + pageSize - 1);
 

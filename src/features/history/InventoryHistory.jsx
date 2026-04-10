@@ -20,6 +20,14 @@ function normalizeType(type) {
     };
   }
 
+  if (normalized === "checked_empty") {
+    return {
+      label: "Pusta lokalizacja",
+      color: "#2E7D32",
+      prefix: "",
+    };
+  }
+
   return {
     label: type || "Operacja",
     color: "#1976D2",
@@ -38,7 +46,7 @@ export default function InventoryHistory() {
       const { data, error: fetchError } = await supabase
         .from("entries")
         .select("*")
-        .in("type", ["brak", "nadwyżka", "nadwyzka", "surplus", "shortage"])
+        .in("type", ["brak", "nadwyżka", "nadwyzka", "surplus", "shortage", "checked_empty"])
         .order("created_at", { ascending: false })
         .limit(200);
 

@@ -187,26 +187,36 @@ export default function ImportExportPanel() {
                       const fieldConfig = entityMapping.import.fields[field.key] || { mode: "header", value: field.aliases?.[0] || field.key };
                       return (
                         <div className="import-mapping-row" key={field.key}>
-                          <div>
+                          <div className="import-mapping-row__meta">
                             <div className="import-mapping-row__title">{field.label}</div>
                             <div className="helper-note">
                               {field.required ? "Pole wymagane" : "Pole opcjonalne"}
                             </div>
                           </div>
-                          <select
-                            value={fieldConfig.mode}
-                            onChange={(event) => updateImportField(field.key, { mode: event.target.value })}
-                          >
-                            <option value="header">Naglowek</option>
-                            <option value="index">Numer kolumny</option>
-                          </select>
-                          <input
-                            type={fieldConfig.mode === "index" ? "number" : "text"}
-                            min={1}
-                            value={fieldConfig.value || ""}
-                            onChange={(event) => updateImportField(field.key, { value: event.target.value })}
-                            placeholder={fieldConfig.mode === "index" ? "Np. 4" : "Np. sku albo ilosc"}
-                          />
+                          <div className="import-mapping-row__control">
+                            <label className="app-field__label">Tryb mapowania</label>
+                            <select
+                              className="import-mapping-input"
+                              value={fieldConfig.mode}
+                              onChange={(event) => updateImportField(field.key, { mode: event.target.value })}
+                            >
+                              <option value="header">Naglowek</option>
+                              <option value="index">Numer kolumny</option>
+                            </select>
+                          </div>
+                          <div className="import-mapping-row__control">
+                            <label className="app-field__label">
+                              {fieldConfig.mode === "index" ? "Numer kolumny" : "Nazwa naglowka"}
+                            </label>
+                            <input
+                              className="import-mapping-input"
+                              type={fieldConfig.mode === "index" ? "number" : "text"}
+                              min={1}
+                              value={fieldConfig.value || ""}
+                              onChange={(event) => updateImportField(field.key, { value: event.target.value })}
+                              placeholder={fieldConfig.mode === "index" ? "Np. 4" : "Np. sku albo ilosc"}
+                            />
+                          </div>
                         </div>
                       );
                     })}
@@ -223,30 +233,41 @@ export default function ImportExportPanel() {
                 <div className="import-mapping-list">
                   {entityMapping.export.columns.map((column, index) => (
                     <div className="import-mapping-row import-mapping-row--export" key={column.id || `${column.source}-${index}`}>
-                      <label className="import-export-toggle">
+                      <div className="import-mapping-row__control">
+                        <label className="app-field__label">Widocznosc</label>
+                        <label className="import-export-toggle import-export-toggle--card">
+                          <input
+                            type="checkbox"
+                            checked={column.enabled !== false}
+                            onChange={(event) => updateExportColumn(index, { enabled: event.target.checked })}
+                          />
+                          <span>Aktywna</span>
+                        </label>
+                      </div>
+                      <div className="import-mapping-row__control">
+                        <label className="app-field__label">Naglowek eksportu</label>
                         <input
-                          type="checkbox"
-                          checked={column.enabled !== false}
-                          onChange={(event) => updateExportColumn(index, { enabled: event.target.checked })}
+                          className="import-mapping-input"
+                          type="text"
+                          value={column.header || ""}
+                          onChange={(event) => updateExportColumn(index, { header: event.target.value })}
+                          placeholder="Naglowek w eksporcie"
                         />
-                        <span>Aktywna</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={column.header || ""}
-                        onChange={(event) => updateExportColumn(index, { header: event.target.value })}
-                        placeholder="Naglowek w eksporcie"
-                      />
-                      <select
-                        value={column.source}
-                        onChange={(event) => updateExportColumn(index, { source: event.target.value })}
-                      >
-                        {entity.exportFields.map((field) => (
-                          <option key={field.key} value={field.key}>
-                            {field.label}
-                          </option>
-                        ))}
-                      </select>
+                      </div>
+                      <div className="import-mapping-row__control">
+                        <label className="app-field__label">Dane z pola</label>
+                        <select
+                          className="import-mapping-input"
+                          value={column.source}
+                          onChange={(event) => updateExportColumn(index, { source: event.target.value })}
+                        >
+                          {entity.exportFields.map((field) => (
+                            <option key={field.key} value={field.key}>
+                              {field.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   ))}
                 </div>

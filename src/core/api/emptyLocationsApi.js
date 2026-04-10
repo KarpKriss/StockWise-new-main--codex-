@@ -27,18 +27,30 @@ function unwrapRpcRows(data) {
 
 export async function fetchEmptyLocationZones({ siteId } = {}) {
   const safeSiteId = normalizeUuidLike(siteId);
-
-  const { data, error } = await supabase.rpc("get_empty_location_zones", {
+  let zonesResult = await supabase.rpc("get_empty_location_zones", {
     p_site_id: safeSiteId,
   });
 
-  if (error) {
-    console.error("FETCH EMPTY ZONES RPC ERROR:", error);
-    throw new Error(error.message || "Blad pobierania stref");
+  if (zonesResult.error) {
+    console.warn("FETCH EMPTY ZONES RPC ERROR:", zonesResult.error);
+
+    let fallbackQuery = supabase.from("locations").select("zone, status");
+
+    if (safeSiteId) {
+      fallbackQuery = fallbackQuery.eq("site_id", safeSiteId);
+    }
+
+    zonesResult = await fallbackQuery;
   }
 
-  const rows = unwrapRpcRows(data);
+  if (zonesResult.error) {
+    console.error("FETCH EMPTY ZONES ERROR:", zonesResult.error);
+    throw new Error(zonesResult.error.message || "Blad pobierania stref");
+  }
+
+  const rows = unwrapRpcRows(zonesResult.data);
   const zones = rows
+    .filter((row) => String(row.status || "").toLowerCase() === "active" || !("status" in row))
     .map((row) => String(row.zone || "").trim())
     .filter(Boolean);
 
@@ -47,23 +59,63 @@ export async function fetchEmptyLocationZones({ siteId } = {}) {
 
 export async function fetchEmptyLocationsForZone({ zone, siteId } = {}) {
   if (!zone) {
-    return [];
+    return { locations: [], totalCount: 0 };
   }
 
   const safeSiteId = normalizeUuidLike(siteId);
-  const { data, error } = await supabase.rpc("get_empty_locations_for_zone", {
-    p_zone: zone,
-    p_site_id: safeSiteId,
-  });
+  const pageSize = 1000;
+  const allLocations = [];
+  let offset = 0;
 
-  if (error) {
-    console.error("FETCH EMPTY LOCATIONS RPC ERROR:", error);
-    throw new Error(error.message || "Blad pobierania lokalizacji");
+  const { data: stockRows, error: stockError } = await supabase
+    .from("stock")
+    .select("location_id");
+
+  if (stockError) {
+    console.error("FETCH STOCK FOR EMPTY LOCATIONS ERROR:", stockError);
+    throw new Error(stockError.message || "Blad pobierania stocku");
   }
 
-  return unwrapRpcRows(data).sort((left, right) =>
-    String(left.code || "").localeCompare(String(right.code || ""))
-  );
+  while (true) {
+    let query = supabase
+      .from("locations")
+      .select("id, code, zone, status, locked_by, locked_at, site_id")
+      .eq("zone", zone)
+      .eq("status", "active")
+      .order("code", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+
+    if (safeSiteId) {
+      query = query.eq("site_id", safeSiteId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("FETCH EMPTY LOCATIONS PAGE ERROR:", error);
+      throw new Error(error.message || "Blad pobierania lokalizacji");
+    }
+
+    if (!data?.length) {
+      break;
+    }
+
+    allLocations.push(...data);
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    offset += pageSize;
+  }
+
+  const occupiedIds = new Set((stockRows || []).map((row) => row.location_id).filter(Boolean));
+  const emptyLocations = allLocations.filter((row) => !occupiedIds.has(row.id));
+
+  return {
+    locations: emptyLocations,
+    totalCount: emptyLocations.length,
+  };
 }
 
 export async function markLocationOnWork({ locationId, userId }) {
@@ -117,6 +169,7 @@ export async function reportLocationProblem({
   sessionId,
   zone,
   reason,
+  note,
 }) {
   const { error } = await supabase.rpc("report_empty_location_issue", {
     p_location_id: location.id,
@@ -125,11 +178,34 @@ export async function reportLocationProblem({
     p_operator_email: user?.email || null,
     p_zone: zone || null,
     p_issue_type: reason,
-    p_note: null,
+    p_note: note || null,
   });
 
   if (error) {
     console.error("REPORT EMPTY LOCATION ISSUE RPC ERROR:", error);
     throw new Error(error.message || "Nie udalo sie zapisac problemu");
   }
+}
+
+export async function resolveProductForSurplus({ sku, ean }) {
+  const normalizedSku = String(sku || "").trim();
+  const normalizedEan = String(ean || "").trim();
+  let query = supabase.from("products").select("id, sku, ean").limit(1);
+
+  if (normalizedSku) {
+    query = query.eq("sku", normalizedSku);
+  } else if (normalizedEan) {
+    query = query.eq("ean", normalizedEan);
+  } else {
+    return null;
+  }
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) {
+    console.error("RESOLVE PRODUCT FOR SURPLUS ERROR:", error);
+    throw new Error(error.message || "Blad walidacji produktu");
+  }
+
+  return data || null;
 }

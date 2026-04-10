@@ -10,6 +10,7 @@ import {
   fetchEmptyLocationZones,
   markLocationOnWork,
   releaseLocationWork,
+  resolveProductForSurplus,
   reportLocationProblem,
 } from "../../core/api/emptyLocationsApi";
 import EanStep from "./steps/EanStep";
@@ -31,6 +32,7 @@ export default function EmptyLocationProcess() {
   const [completedZones, setCompletedZones] = useState([]);
   const [selectedZone, setSelectedZone] = useState("");
   const [queue, setQueue] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [stage, setStage] = useState("zones");
   const [scanValue, setScanValue] = useState("");
@@ -43,10 +45,11 @@ export default function EmptyLocationProcess() {
     lot: "",
     quantity: "",
   });
+  const [problemNote, setProblemNote] = useState("");
   const lockedLocationIdRef = useRef(null);
 
   const currentLocation = queue[currentIndex] || null;
-  const totalLocations = queue.length;
+  const totalLocations = totalCount || queue.length;
   const availableZones = useMemo(
     () => zones.filter((zone) => !completedZones.includes(zone)),
     [zones, completedZones]
@@ -123,15 +126,18 @@ export default function EmptyLocationProcess() {
   async function beginZone(zone) {
     try {
       setSubmitting(true);
-      const locations = await fetchEmptyLocationsForZone({
+      const result = await fetchEmptyLocationsForZone({
         zone,
         siteId: user?.site_id,
       });
+      const locations = result.locations || [];
 
       setSelectedZone(zone);
       setQueue(locations);
+      setTotalCount(result.totalCount || locations.length);
       setCurrentIndex(0);
       setScanValue("");
+      setProblemNote("");
       setError("");
 
       if (locations.length === 0) {
@@ -158,6 +164,7 @@ export default function EmptyLocationProcess() {
       lot: "",
       quantity: "",
     });
+    setProblemNote("");
 
     if (nextIndex >= totalLocations) {
       setCompletedZones((current) =>
@@ -237,6 +244,7 @@ export default function EmptyLocationProcess() {
         sessionId: session.session_id,
         zone: selectedZone,
         reason,
+        note: problemNote.trim() || null,
       });
 
       lockedLocationIdRef.current = null;
@@ -289,6 +297,18 @@ export default function EmptyLocationProcess() {
         quantity,
       };
 
+      const resolvedProduct = await resolveProductForSurplus({
+        sku: payload.sku,
+        ean: payload.ean,
+      });
+
+      if (!resolvedProduct) {
+        throw new Error("Nie znaleziono SKU lub EAN w kartotece produktow");
+      }
+
+      payload.sku = resolvedProduct.sku;
+      payload.ean = payload.ean || resolvedProduct.ean || null;
+
       await saveEntry(payload);
       await releaseCurrentLocation("active");
       addOperation(payload);
@@ -303,8 +323,10 @@ export default function EmptyLocationProcess() {
   function resetToZonePicker() {
     setSelectedZone("");
     setQueue([]);
+    setTotalCount(0);
     setCurrentIndex(0);
     setScanValue("");
+    setProblemNote("");
     setError("");
     setStage("zones");
   }
@@ -432,6 +454,7 @@ export default function EmptyLocationProcess() {
             disabled={submitting}
             onClick={() => {
               setError("");
+              setProblemNote("");
               setStage("problem");
             }}
           >
@@ -443,6 +466,13 @@ export default function EmptyLocationProcess() {
       {stage === "problem" && currentLocation && (
         <>
           <div className="confirm-header">Wybierz typ problemu</div>
+          <textarea
+            className="input"
+            placeholder="Opcjonalny komentarz do problemu"
+            value={problemNote}
+            onChange={(event) => setProblemNote(event.target.value)}
+            style={{ minHeight: 100, marginBottom: 16 }}
+          />
           <div style={{ display: "grid", gap: 12 }}>
             {PROBLEM_OPTIONS.map((reason) => (
               <button
@@ -468,7 +498,7 @@ export default function EmptyLocationProcess() {
 
       {stage === "surplus" && currentLocation && (
         <>
-          <div className="confirm-header">Zglos nadwyzke dla {currentLocation.code}</div>
+          <div className="confirm-header">Dodaj towar dla {currentLocation.code}</div>
           <EanStep
             value={surplusData.ean}
             onChange={(value) =>

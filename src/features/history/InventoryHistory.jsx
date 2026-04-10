@@ -4,7 +4,7 @@ import { supabase } from "../../core/api/supabaseClient";
 function normalizeType(type) {
   const normalized = String(type || "").toLowerCase();
 
-  if (normalized === "nadwyżka" || normalized === "nadwyzka") {
+  if (normalized === "nadwyżka" || normalized === "nadwyzka" || normalized === "surplus") {
     return {
       label: "Nadwyzka",
       color: "#4CAF50",
@@ -12,7 +12,7 @@ function normalizeType(type) {
     };
   }
 
-  if (normalized === "brak") {
+  if (normalized === "brak" || normalized === "shortage") {
     return {
       label: "Brak",
       color: "#F44336",
@@ -38,7 +38,7 @@ export default function InventoryHistory() {
       const { data, error: fetchError } = await supabase
         .from("entries")
         .select("*")
-        .in("type", ["brak", "nadwyżka", "nadwyzka"])
+        .in("type", ["brak", "nadwyżka", "nadwyzka", "surplus", "shortage"])
         .order("created_at", { ascending: false })
         .limit(200);
 

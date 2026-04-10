@@ -13,6 +13,17 @@ import {
 
 const ROLE_OPTIONS = ["user", "superuser", "office", "manager", "admin"];
 const STATUS_OPTIONS = ["active", "inactive"];
+const INITIAL_CREATE_FORM = {
+  email: "",
+  password: "",
+  name: "",
+  operatorNumber: "",
+  role: "user",
+  status: "active",
+};
+const INITIAL_PASSWORD_FORM = {
+  newPassword: "",
+};
 
 function formatLastActivity(value) {
   if (!value) {
@@ -30,15 +41,6 @@ function getStatusClass(status) {
   return "status-badge status-badge--neutral";
 }
 
-const INITIAL_CREATE_FORM = {
-  email: "",
-  password: "",
-  name: "",
-  operatorNumber: "",
-  role: "user",
-  status: "active",
-};
-
 export default function UserPanelModern() {
   const [rows, setRows] = useState([]);
   const [search, setSearch] = useState("");
@@ -50,6 +52,7 @@ export default function UserPanelModern() {
   const [draft, setDraft] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(INITIAL_CREATE_FORM);
+  const [passwordForm, setPasswordForm] = useState(INITIAL_PASSWORD_FORM);
 
   async function loadUsers() {
     try {
@@ -76,7 +79,8 @@ export default function UserPanelModern() {
         !needle ||
         String(row.email || "").toLowerCase().includes(needle) ||
         String(row.alias || row.name || "").toLowerCase().includes(needle) ||
-        String(row.role || "").toLowerCase().includes(needle);
+        String(row.role || "").toLowerCase().includes(needle) ||
+        String(row.operatorNumber || "").toLowerCase().includes(needle);
       const matchesStatus = statusFilter === "all" || row.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
@@ -89,11 +93,13 @@ export default function UserPanelModern() {
       name: user.name || "",
       operatorNumber: user.operatorNumber || "",
     });
+    setPasswordForm(INITIAL_PASSWORD_FORM);
   }
 
   function closeEditor() {
     setSelectedUser(null);
     setDraft(null);
+    setPasswordForm(INITIAL_PASSWORD_FORM);
   }
 
   async function handleSaveUser() {
@@ -105,6 +111,7 @@ export default function UserPanelModern() {
         name: draft.name,
         role: draft.role,
         status: draft.status,
+        operatorNumber: draft.operatorNumber,
       });
       await loadUsers();
       closeEditor();
@@ -115,8 +122,8 @@ export default function UserPanelModern() {
     }
   }
 
-  async function handleToggleStatus() {
-    if (!selectedUser || !draft) return;
+  function handleToggleStatus() {
+    if (!draft) return;
     const nextStatus = draft.status === "active" ? "inactive" : "active";
     setDraft((current) => ({ ...current, status: nextStatus }));
   }
@@ -142,9 +149,15 @@ export default function UserPanelModern() {
 
   async function handlePasswordReset() {
     if (!selectedUser) return;
+    if (!passwordForm.newPassword) {
+      alert("Wprowadz nowe haslo");
+      return;
+    }
+
     try {
       setSaving(true);
-      await resetAdminUserPassword(selectedUser.user_id);
+      await resetAdminUserPassword(selectedUser.user_id, passwordForm.newPassword);
+      setPasswordForm(INITIAL_PASSWORD_FORM);
       alert("Haslo zostalo zresetowane.");
     } catch (err) {
       alert(err.message || "Nie udalo sie zresetowac hasla");
@@ -155,6 +168,7 @@ export default function UserPanelModern() {
 
   async function handleDeleteUser() {
     if (!selectedUser) return;
+
     try {
       setSaving(true);
       await deleteAdminUserAccount(selectedUser.user_id);
@@ -189,13 +203,19 @@ export default function UserPanelModern() {
             <div style={{ position: "relative" }}>
               <Search
                 size={16}
-                style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--app-text-soft)" }}
+                style={{
+                  position: "absolute",
+                  left: 14,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "var(--app-text-soft)",
+                }}
               />
               <input
                 style={{ paddingLeft: 40 }}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Email, pseudonim lub rola"
+                placeholder="Email, pseudonim, rola lub numer operatora"
               />
             </div>
           </div>
@@ -218,7 +238,9 @@ export default function UserPanelModern() {
         <div className="app-card">
           <div className="app-module-panel__header" style={{ marginBottom: 14 }}>
             <div>
-              <h2 className="process-panel__title" style={{ fontSize: 24 }}>Lista uzytkownikow</h2>
+              <h2 className="process-panel__title" style={{ fontSize: 24 }}>
+                Lista uzytkownikow
+              </h2>
               <p className="process-panel__subtitle">
                 {filteredRows.length} kont po zastosowaniu filtrow.
               </p>
@@ -233,6 +255,7 @@ export default function UserPanelModern() {
                   <th>Rola</th>
                   <th>Status</th>
                   <th>Ostatnia aktywnosc</th>
+                  <th>Numer operatora</th>
                   <th>Sesja</th>
                   <th>Akcje</th>
                 </tr>
@@ -258,6 +281,7 @@ export default function UserPanelModern() {
                       </span>
                     </td>
                     <td>{formatLastActivity(row.last_activity)}</td>
+                    <td>{row.operatorNumber || "-"}</td>
                     <td>
                       <span className={getStatusClass(row.latest_session_status)}>
                         {row.latest_session_status || "brak"}
@@ -274,7 +298,7 @@ export default function UserPanelModern() {
 
                 {filteredRows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="app-empty-state">
+                    <td colSpan={7} className="app-empty-state">
                       Brak uzytkownikow spelniajacych filtry.
                     </td>
                   </tr>
@@ -290,7 +314,9 @@ export default function UserPanelModern() {
           <div className="history-modal" onClick={(event) => event.stopPropagation()}>
             <div className="history-modal__header">
               <div>
-                <h2 className="process-panel__title" style={{ fontSize: 26, margin: 0 }}>Dodaj uzytkownika</h2>
+                <h2 className="process-panel__title" style={{ fontSize: 26, margin: 0 }}>
+                  Dodaj uzytkownika
+                </h2>
                 <p className="process-panel__subtitle">
                   Utworz nowe konto operatora i przygotuj jego profil roboczy.
                 </p>
@@ -304,34 +330,43 @@ export default function UserPanelModern() {
               <Input
                 label="Email"
                 value={createForm.email}
-                onChange={(event) => setCreateForm((current) => ({ ...current, email: event.target.value }))}
+                onChange={(event) =>
+                  setCreateForm((current) => ({ ...current, email: event.target.value }))
+                }
                 placeholder="operator@firma.pl"
               />
               <Input
                 label="Haslo startowe"
                 type="password"
                 value={createForm.password}
-                onChange={(event) => setCreateForm((current) => ({ ...current, password: event.target.value }))}
+                onChange={(event) =>
+                  setCreateForm((current) => ({ ...current, password: event.target.value }))
+                }
                 placeholder="Wprowadz haslo"
               />
               <Input
                 label="Pseudonim / imie operatora"
                 value={createForm.name}
-                onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))}
+                onChange={(event) =>
+                  setCreateForm((current) => ({ ...current, name: event.target.value }))
+                }
                 placeholder="Np. Jan"
               />
               <Input
                 label="Numer operatora"
                 value={createForm.operatorNumber}
-                onChange={(event) => setCreateForm((current) => ({ ...current, operatorNumber: event.target.value }))}
+                onChange={(event) =>
+                  setCreateForm((current) => ({ ...current, operatorNumber: event.target.value }))
+                }
                 placeholder="Np. OP-014"
               />
-
               <div className="app-field">
                 <label className="app-field__label">Rola</label>
                 <select
                   value={createForm.role}
-                  onChange={(event) => setCreateForm((current) => ({ ...current, role: event.target.value }))}
+                  onChange={(event) =>
+                    setCreateForm((current) => ({ ...current, role: event.target.value }))
+                  }
                 >
                   {ROLE_OPTIONS.map((role) => (
                     <option key={role} value={role}>
@@ -340,12 +375,13 @@ export default function UserPanelModern() {
                   ))}
                 </select>
               </div>
-
               <div className="app-field">
                 <label className="app-field__label">Status</label>
                 <select
                   value={createForm.status}
-                  onChange={(event) => setCreateForm((current) => ({ ...current, status: event.target.value }))}
+                  onChange={(event) =>
+                    setCreateForm((current) => ({ ...current, status: event.target.value }))
+                  }
                 >
                   {STATUS_OPTIONS.map((status) => (
                     <option key={status} value={status}>
@@ -357,7 +393,7 @@ export default function UserPanelModern() {
             </div>
 
             <p className="helper-note" style={{ marginTop: 14 }}>
-              Numer operatora jest juz przewidziany w formularzu, ale w obecnym backendzie nie ma jeszcze dedykowanej kolumny do jego trwalego zapisu.
+              To konto zostanie utworzone przez bezpieczny backend administratorski, bez obchodzenia sesji zalogowanego admina.
             </p>
 
             <div className="process-actions" style={{ marginTop: 20 }}>
@@ -391,23 +427,22 @@ export default function UserPanelModern() {
             </div>
 
             <div className="history-modal__grid">
-              <Input
-                label="Email"
-                value={draft.email || ""}
-                disabled
-              />
+              <Input label="Email" value={draft.email || ""} disabled />
               <Input
                 label="Pseudonim / imie operatora"
                 value={draft.name || ""}
-                onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, name: event.target.value }))
+                }
                 placeholder="Wprowadz imie operatora"
               />
-
               <div className="app-field">
                 <label className="app-field__label">Rola</label>
                 <select
                   value={draft.role}
-                  onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, role: event.target.value }))
+                  }
                 >
                   {ROLE_OPTIONS.map((role) => (
                     <option key={role} value={role}>
@@ -416,12 +451,13 @@ export default function UserPanelModern() {
                   ))}
                 </select>
               </div>
-
               <div className="app-field">
                 <label className="app-field__label">Status konta</label>
                 <select
                   value={draft.status}
-                  onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, status: event.target.value }))
+                  }
                 >
                   {STATUS_OPTIONS.map((status) => (
                     <option key={status} value={status}>
@@ -430,25 +466,34 @@ export default function UserPanelModern() {
                   ))}
                 </select>
               </div>
-
               <Input
                 label="Numer operatora"
                 value={draft.operatorNumber || ""}
-                onChange={(event) => setDraft((current) => ({ ...current, operatorNumber: event.target.value }))}
-                placeholder="Wymaga wsparcia backendu"
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, operatorNumber: event.target.value }))
+                }
+                placeholder="Np. OP-014"
               />
-
               <div className="app-card" style={{ padding: 16 }}>
                 <div className="app-field__label">Ostatnia sesja</div>
-                <div style={{ marginTop: 8, fontWeight: 700 }}>{selectedUser.latest_session_status || "brak"}</div>
+                <div style={{ marginTop: 8, fontWeight: 700 }}>
+                  {selectedUser.latest_session_status || "brak"}
+                </div>
                 <div className="helper-note" style={{ marginTop: 8 }}>
                   Status sesji pochodzi z ostatniej sesji z tabeli sessions.
                 </div>
               </div>
+              <Input
+                label="Nowe haslo"
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(event) => setPasswordForm({ newPassword: event.target.value })}
+                placeholder="Wprowadz nowe haslo do resetu"
+              />
             </div>
 
             <p className="helper-note" style={{ marginTop: 14 }}>
-              Zmiana roli, aktywacja, dezaktywacja i pseudonim zapisza sie do profilu. Reset hasla, pelne usuniecie konta i trwaly numer operatora nadal wymagaja bezpiecznego backendu.
+              Zmiana roli, aktywacja, dezaktywacja, pseudonim i numer operatora sa przygotowane pod bezpieczny backend administracyjny.
             </p>
 
             <div className="process-actions" style={{ marginTop: 20 }}>
@@ -462,11 +507,11 @@ export default function UserPanelModern() {
             </div>
 
             <div className="process-actions" style={{ marginTop: 12 }}>
-              <Button variant="secondary" onClick={handlePasswordReset}>
+              <Button variant="secondary" loading={saving} onClick={handlePasswordReset}>
                 <KeyRound size={16} />
                 Reset hasla
               </Button>
-              <Button variant="secondary" onClick={handleDeleteUser}>
+              <Button variant="secondary" loading={saving} onClick={handleDeleteUser}>
                 <Trash2 size={16} />
                 Usun uzytkownika
               </Button>
@@ -477,4 +522,3 @@ export default function UserPanelModern() {
     </PageShell>
   );
 }
-

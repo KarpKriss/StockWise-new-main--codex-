@@ -1,5 +1,15 @@
 import { supabase } from "./supabaseClient";
 
+function normalizeAdminUser(entry = {}) {
+  return {
+    ...entry,
+    operatorNumber: entry.operatorNumber ?? entry.operator_number ?? "",
+    latest_session_status:
+      entry.latest_session_status ?? entry.latestSessionStatus ?? null,
+    last_activity: entry.last_activity ?? entry.lastActivity ?? null,
+  };
+}
+
 function unwrapFunctionError(error) {
   if (!error) {
     return new Error("Nieznany blad backendu administracyjnego");
@@ -129,7 +139,9 @@ function requireEdgeFunctionFeature(message) {
 export async function fetchAdminUsersList() {
   try {
     const data = await invokeAdminRpc("get_admin_users_overview");
-    return (data || []).map((entry) => ({ ...entry, backendMode: "rpc" }));
+    return (data || []).map((entry) =>
+      normalizeAdminUser({ ...entry, backendMode: "rpc" })
+    );
   } catch (error) {
     return fetchAdminUsersListFallback();
   }
@@ -145,7 +157,7 @@ export async function updateAdminUserProfile(userId, payload) {
       p_operator_number: payload.operatorNumber ?? null,
     });
 
-    return Array.isArray(rows) ? rows[0] : rows;
+    return normalizeAdminUser(Array.isArray(rows) ? rows[0] : rows);
   } catch (error) {
     throw error;
   }

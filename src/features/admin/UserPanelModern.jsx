@@ -192,7 +192,7 @@ export default function UserPanelModern() {
       backLabel="Powrot do ustawien"
       compact
       actions={
-        <Button onClick={() => setCreateOpen(true)}>
+        <Button disabled={usesFallbackBackend} onClick={() => setCreateOpen(true)}>
           <Plus size={16} />
           Dodaj uzytkownika
         </Button>
@@ -296,7 +296,12 @@ export default function UserPanelModern() {
                       </span>
                     </td>
                     <td>
-                      <Button variant="secondary" size="md" onClick={() => openEditor(row)}>
+                      <Button
+                        variant="secondary"
+                        size="md"
+                        disabled={usesFallbackBackend}
+                        onClick={() => openEditor(row)}
+                      >
                         <Edit3 size={16} />
                         Edytuj
                       </Button>
@@ -403,9 +408,14 @@ export default function UserPanelModern() {
             <p className="helper-note" style={{ marginTop: 14 }}>
               To konto zostanie utworzone przez bezpieczny backend administratorski, bez obchodzenia sesji zalogowanego admina.
             </p>
+            {usesFallbackBackend ? (
+              <p className="input-error-text" style={{ marginTop: 10 }}>
+                Tworzenie kont jest chwilowo niedostepne, bo backend `admin-users` nie odpowiada.
+              </p>
+            ) : null}
 
             <div className="process-actions" style={{ marginTop: 20 }}>
-              <Button loading={saving} onClick={handleCreateUser}>
+              <Button disabled={usesFallbackBackend} loading={saving} onClick={handleCreateUser}>
                 <UserPlus size={16} />
                 Utworz konto
               </Button>
@@ -503,23 +513,28 @@ export default function UserPanelModern() {
             <p className="helper-note" style={{ marginTop: 14 }}>
               Zmiana roli, aktywacja, dezaktywacja, pseudonim i numer operatora sa przygotowane pod bezpieczny backend administracyjny.
             </p>
+            {usesFallbackBackend ? (
+              <p className="input-error-text" style={{ marginTop: 10 }}>
+                Edycja, reset hasla i usuwanie sa chwilowo wylaczone, dopoki backend `admin-users` nie zostanie wdrozony.
+              </p>
+            ) : null}
 
             <div className="process-actions" style={{ marginTop: 20 }}>
-              <Button loading={saving} onClick={handleSaveUser}>
+              <Button disabled={usesFallbackBackend} loading={saving} onClick={handleSaveUser}>
                 <Shield size={16} />
                 Zapisz zmiany
               </Button>
-              <Button variant="secondary" onClick={handleToggleStatus}>
+              <Button disabled={usesFallbackBackend} variant="secondary" onClick={handleToggleStatus}>
                 {draft.status === "active" ? "Dezaktywuj konto" : "Aktywuj konto"}
               </Button>
             </div>
 
             <div className="process-actions" style={{ marginTop: 12 }}>
-              <Button variant="secondary" loading={saving} onClick={handlePasswordReset}>
+              <Button disabled={usesFallbackBackend} variant="secondary" loading={saving} onClick={handlePasswordReset}>
                 <KeyRound size={16} />
                 Reset hasla
               </Button>
-              <Button variant="secondary" loading={saving} onClick={handleDeleteUser}>
+              <Button disabled={usesFallbackBackend} variant="secondary" loading={saving} onClick={handleDeleteUser}>
                 <Trash2 size={16} />
                 Usun uzytkownika
               </Button>

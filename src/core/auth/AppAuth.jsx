@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "../api/supabaseClient";
 import { logEvent } from "../api/auditApi";
+import { logAuthEvent, logClientError } from "../api/logsApi";
 
 const AuthContext = createContext(null);
 const AUTH_CACHE_KEY = "stockwise-auth-user";
@@ -114,6 +115,14 @@ export function AuthProvider({ children }) {
       return true;
     } catch (error) {
       console.error("PROFILE FETCH ERROR:", error);
+      logClientError({
+        userId: authUser?.id || null,
+        area: "auth.profile_fetch",
+        message: error?.message || "PROFILE_FETCH_ERROR",
+        details: {
+          email: authUser?.email || null,
+        },
+      });
 
       const currentUser = userRef.current;
       const cachedUser = readCachedUser();
@@ -203,6 +212,13 @@ export function AuthProvider({ children }) {
       });
 
       if (error) {
+        await logAuthEvent({
+          email,
+          eventType: "LOGIN_FAILURE",
+          success: false,
+          message: error.message || "Nieprawidlowe dane logowania",
+        });
+
         const { data: failData } = await supabase.rpc("login_full", {
           p_email: email,
           p_success: false,
@@ -228,6 +244,14 @@ export function AuthProvider({ children }) {
         event_type: "LOGIN",
       });
 
+      await logAuthEvent({
+        email,
+        userId: data.user.id,
+        eventType: "LOGIN_SUCCESS",
+        success: true,
+        message: "Logowanie zakonczone powodzeniem",
+      });
+
       await supabase
         .from("profiles")
         .update({
@@ -248,6 +272,12 @@ export function AuthProvider({ children }) {
       return { success: true };
     } catch (error) {
       console.error("LOGIN ERROR:", error);
+      await logAuthEvent({
+        email,
+        eventType: "LOGIN_ERROR",
+        success: false,
+        message: error?.message || "Blad systemu",
+      });
       return { success: false, message: "Błąd systemu" };
     }
   };
@@ -258,6 +288,13 @@ export function AuthProvider({ children }) {
         user_id: user?.id || null,
         session_id: null,
         event_type: "LOGOUT",
+      });
+      await logAuthEvent({
+        email: user?.email || null,
+        userId: user?.id || null,
+        eventType: "LOGOUT",
+        success: true,
+        message: "Wylogowanie zakonczone powodzeniem",
       });
     } catch (error) {
       console.error("LOGOUT AUDIT ERROR:", error);

@@ -3,6 +3,7 @@ import { AuthProvider } from '../core/auth/AppAuth';
 import { SessionProvider } from '../core/session/AppSession';
 import AppRoutes from './routes';
 import SessionGate from '../components/session/SessionGate';
+import ClientErrorMonitor from '../components/system/ClientErrorMonitor';
 
 
 function App() {
@@ -10,6 +11,7 @@ function App() {
     <AuthProvider>
       <SessionProvider>
         <BrowserRouter>
+          <ClientErrorMonitor />
           <SessionGate>
             <AppRoutes />
           </SessionGate>

@@ -86,6 +86,8 @@ export default function UserPanelModern() {
     });
   }, [rows, search, statusFilter]);
 
+  const usesFallbackBackend = rows.some((row) => row.backendMode === "fallback");
+
   function openEditor(user) {
     setSelectedUser(user);
     setDraft({
@@ -233,6 +235,12 @@ export default function UserPanelModern() {
 
       {loading ? <div className="app-card">Ladowanie listy uzytkownikow...</div> : null}
       {error ? <div className="input-error-text">{error}</div> : null}
+      {!loading && !error && usesFallbackBackend ? (
+        <div className="app-card" style={{ marginBottom: 16 }}>
+          Lista zostala zaladowana z tabel `profiles` i `sessions`, bo edge function `admin-users` nie odpowiedziala.
+          Akcje takie jak tworzenie kont, reset hasla i usuwanie wymagaja wdrozonego backendu administratorskiego.
+        </div>
+      ) : null}
 
       {!loading && !error ? (
         <div className="app-card">

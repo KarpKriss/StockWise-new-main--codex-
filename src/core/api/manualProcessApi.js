@@ -1,17 +1,13 @@
 import { supabase } from "./supabaseClient";
 import { saveEntry } from "./entriesApi";
 import { markLocationOnWork, releaseLocationWork } from "./emptyLocationsApi";
+import {
+  DEFAULT_MANUAL_PROCESS_CONFIG,
+  normalizeManualProcessConfig,
+} from "../config/manualProcessConfig";
 
 const BUFFER_KEY = "stockwise-manual-buffer";
-const DEFAULT_CONFIG = {
-  lotPattern: "^[A-Za-z0-9._/-]{1,50}$",
-  lotMessage: "Niepoprawny format LOT",
-  quantityWarningThreshold: 999,
-  locationTimeoutMs: 5 * 60 * 1000,
-  saveTimeoutMs: 10000,
-  saveRetries: 2,
-  fetchRetries: 2,
-};
+const DEFAULT_CONFIG = DEFAULT_MANUAL_PROCESS_CONFIG;
 
 function normalizeUuidLike(value) {
   const normalized = String(value || "").trim();
@@ -24,28 +20,6 @@ function normalizeUuidLike(value) {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
   return uuidRegex.test(normalized) ? normalized : null;
-}
-
-function parseValidationRules(row) {
-  const rules = row?.validation_rules || {};
-
-  return {
-    ...DEFAULT_CONFIG,
-    lotPattern: rules.lotPattern || rules.lot_pattern || DEFAULT_CONFIG.lotPattern,
-    lotMessage: rules.lotMessage || rules.lot_message || DEFAULT_CONFIG.lotMessage,
-    quantityWarningThreshold:
-      Number(rules.quantityWarningThreshold || rules.maxQuantityWarning) ||
-      DEFAULT_CONFIG.quantityWarningThreshold,
-    locationTimeoutMs:
-      Number(rules.locationTimeoutMs || rules.locationTimeoutSeconds) > 0
-        ? Number(rules.locationTimeoutMs || rules.locationTimeoutSeconds) *
-          (String(rules.locationTimeoutMs || "").includes("000") ? 1 : 1000)
-        : DEFAULT_CONFIG.locationTimeoutMs,
-    saveTimeoutMs:
-      Number(rules.saveTimeoutMs || rules.apiTimeoutMs) || DEFAULT_CONFIG.saveTimeoutMs,
-    saveRetries: Number(rules.saveRetries) || DEFAULT_CONFIG.saveRetries,
-    fetchRetries: Number(rules.fetchRetries) || DEFAULT_CONFIG.fetchRetries,
-  };
 }
 
 export async function fetchManualProcessConfig(siteId) {
@@ -65,7 +39,7 @@ export async function fetchManualProcessConfig(siteId) {
     return DEFAULT_CONFIG;
   }
 
-  return parseValidationRules(data);
+  return normalizeManualProcessConfig(data?.validation_rules || {});
 }
 
 async function withRetries(task, retries = 2) {
@@ -288,8 +262,12 @@ export async function flushBufferedManualEntries() {
 }
 
 export async function saveManualEntryWithResilience(payload, config = DEFAULT_CONFIG) {
-  const retries = Number(config.saveRetries) || DEFAULT_CONFIG.saveRetries;
-  const timeoutMs = Number(config.saveTimeoutMs) || DEFAULT_CONFIG.saveTimeoutMs;
+  const retries =
+    Number(config?.validation?.saveRetries || config.saveRetries) ||
+    DEFAULT_CONFIG.validation.saveRetries;
+  const timeoutMs =
+    Number(config?.validation?.saveTimeoutMs || config.saveTimeoutMs) ||
+    DEFAULT_CONFIG.validation.saveTimeoutMs;
 
   try {
     const data = await withRetries(

@@ -20,6 +20,7 @@ import LotStep from "./steps/LotStep";
 import ExpiryStep from "./steps/ExpiryStep";
 import TypeStep from "./steps/TypeStep";
 import QuantityStep from "./steps/QuantityStep";
+import { getOrderedEnabledManualSteps } from "../../core/config/manualProcessConfig";
 
 const INITIAL_FORM = {
   ean: "",
@@ -59,21 +60,32 @@ export default function ManualInventoryProcess() {
   const locationStartedAtRef = useRef(null);
   const lockedLocationIdRef = useRef(null);
 
+  const validationConfig = config?.validation || {};
+  const stepConfig = config?.steps || {};
+  const orderedSteps = useMemo(() => getOrderedEnabledManualSteps(config || { steps: {} }), [config]);
+  const enabledOperationTypes = useMemo(() => {
+    const types = config?.operationTypes || {};
+    return Object.values(types).filter((item) => item?.enabled);
+  }, [config]);
+
   const quantityWarningThreshold =
-    config?.quantityWarningThreshold || 999;
+    validationConfig.quantityWarningThreshold || 999;
 
   const summaryRows = useMemo(
-    () => [
-      ["Lokalizacja", currentLocation?.code || "-"],
-      ["Strefa", currentLocation?.zone || currentZone || "-"],
-      ["EAN", form.ean || "-"],
-      ["SKU", form.sku || "-"],
-      ["LOT", form.lot || "-"],
-      ["Data waznosci", form.expiry || "-"],
-      ["Typ", form.type || "-"],
-      ["Ilosc", form.quantity || "-"],
-    ],
-    [currentLocation?.code, currentLocation?.zone, currentZone, form]
+    () =>
+      [
+        stepConfig.location?.enabled !== false
+          ? ["Lokalizacja", currentLocation?.code || "-"]
+          : null,
+        currentLocation?.zone || currentZone ? ["Strefa", currentLocation?.zone || currentZone || "-"] : null,
+        stepConfig.ean?.enabled ? ["EAN", form.ean || "-"] : null,
+        stepConfig.sku?.enabled ? ["SKU", form.sku || "-"] : null,
+        stepConfig.lot?.enabled ? ["LOT", form.lot || "-"] : null,
+        stepConfig.expiry?.enabled ? ["Data waznosci", form.expiry || "-"] : null,
+        stepConfig.type?.enabled ? ["Typ", form.type || "-"] : null,
+        stepConfig.quantity?.enabled ? ["Ilosc", form.quantity || "-"] : null,
+      ].filter(Boolean),
+    [currentLocation?.code, currentLocation?.zone, currentZone, form, stepConfig]
   );
 
   useEffect(() => {
@@ -91,7 +103,7 @@ export default function ManualInventoryProcess() {
           return;
         }
 
-        setConfig(nextConfig);
+      setConfig(nextConfig);
 
         if (flushResult.sent > 0) {
           setBufferMessage(`Wyslano z bufora ${flushResult.sent} operacji.`);
@@ -100,13 +112,31 @@ export default function ManualInventoryProcess() {
         if (!cancelled) {
           setError(initError.message || "Blad uruchamiania procesu recznego");
           setConfig({
-            lotPattern: "^[A-Za-z0-9._/-]{1,50}$",
-            lotMessage: "Niepoprawny format LOT",
-            quantityWarningThreshold: 999,
-            locationTimeoutMs: 5 * 60 * 1000,
-            saveTimeoutMs: 10000,
-            saveRetries: 2,
-            fetchRetries: 2,
+            steps: {
+              location: { label: "Lokalizacja", enabled: true, mandatory: true, order: 1 },
+              ean: { label: "EAN", enabled: true, mandatory: false, order: 2 },
+              sku: { label: "SKU", enabled: true, mandatory: true, order: 3 },
+              lot: { label: "LOT", enabled: true, mandatory: false, order: 4 },
+              expiry: { label: "Data waznosci", enabled: true, mandatory: false, order: 5 },
+              type: { label: "Typ operacji", enabled: true, mandatory: true, order: 6 },
+              quantity: { label: "Ilosc", enabled: true, mandatory: true, order: 7 },
+              confirmation: { label: "Potwierdzenie", enabled: true, mandatory: false, order: 8 },
+            },
+            operationTypes: {
+              shortage: { label: "Brak", value: "brak", enabled: true },
+              surplus: { label: "Nadwyzka", value: "surplus", enabled: true },
+            },
+            validation: {
+              lotPattern: "^[A-Za-z0-9._/-]{1,50}$",
+              lotMessage: "Niepoprawny format LOT",
+              quantityWarningThreshold: 999,
+              quantityHardLimit: 999999,
+              quantityHardLimitMessage: "Ilosc przekracza dopuszczalny limit",
+              locationTimeoutMs: 5 * 60 * 1000,
+              saveTimeoutMs: 10000,
+              saveRetries: 2,
+              fetchRetries: 2,
+            },
           });
         }
       } finally {
@@ -145,7 +175,7 @@ export default function ManualInventoryProcess() {
   }, []);
 
   useEffect(() => {
-    if (!currentLocation || !config?.locationTimeoutMs) {
+    if (!currentLocation || !validationConfig.locationTimeoutMs) {
       setTimeWarning("");
       return undefined;
     }
@@ -159,13 +189,13 @@ export default function ManualInventoryProcess() {
 
       const elapsed = Date.now() - startedAt;
 
-      if (elapsed > config.locationTimeoutMs) {
+      if (elapsed > validationConfig.locationTimeoutMs) {
         setTimeWarning("Przekroczono limit czasu kontroli tej lokalizacji.");
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [currentLocation, config?.locationTimeoutMs]);
+  }, [currentLocation, validationConfig.locationTimeoutMs]);
 
   function setField(key, value) {
     setForm((current) => ({
@@ -238,8 +268,26 @@ export default function ManualInventoryProcess() {
       throw new Error("Brak aktywnej lokalizacji");
     }
 
-    if (!form.sku.trim()) {
+    if (stepConfig.sku?.enabled && stepConfig.sku?.mandatory && !form.sku.trim()) {
       throw new Error("SKU jest wymagane");
+    }
+
+    if (stepConfig.ean?.enabled && stepConfig.ean?.mandatory && !form.ean.trim()) {
+      throw new Error("EAN jest wymagany");
+    }
+
+    if (validationConfig.eanPattern && form.ean) {
+      const eanRegex = new RegExp(validationConfig.eanPattern);
+      if (!eanRegex.test(form.ean.trim())) {
+        throw new Error(validationConfig.eanMessage || "Niepoprawny format EAN");
+      }
+    }
+
+    if (validationConfig.skuPattern && form.sku) {
+      const skuRegex = new RegExp(validationConfig.skuPattern);
+      if (!skuRegex.test(form.sku.trim())) {
+        throw new Error(validationConfig.skuMessage || "Niepoprawny format SKU");
+      }
     }
 
     const product = await resolveManualProduct({
@@ -247,22 +295,39 @@ export default function ManualInventoryProcess() {
       ean: form.ean,
     });
 
-    const lotRegex = new RegExp(config?.lotPattern || "^[A-Za-z0-9._/-]{1,50}$");
+    const lotRegex = new RegExp(validationConfig.lotPattern || "^[A-Za-z0-9._/-]{1,50}$");
+
+    if (stepConfig.lot?.enabled && stepConfig.lot?.mandatory && !form.lot.trim()) {
+      throw new Error("LOT jest wymagany");
+    }
 
     if (form.lot && !lotRegex.test(form.lot.trim())) {
-      throw new Error(config?.lotMessage || "Niepoprawny format LOT");
+      throw new Error(validationConfig.lotMessage || "Niepoprawny format LOT");
+    }
+
+    if (stepConfig.expiry?.enabled && stepConfig.expiry?.mandatory && !form.expiry) {
+      throw new Error("Data waznosci jest wymagana");
     }
 
     if (form.expiry && !isValidIsoDate(form.expiry)) {
       throw new Error("Niepoprawny format daty");
     }
 
-    if (!form.type) {
+    if (stepConfig.type?.enabled && stepConfig.type?.mandatory && !form.type) {
       throw new Error("Wybierz typ operacji");
     }
 
-    if (!normalizedQuantity || normalizedQuantity <= 0) {
+    if (stepConfig.quantity?.enabled && stepConfig.quantity?.mandatory && (!normalizedQuantity || normalizedQuantity <= 0)) {
       throw new Error("Ilosc musi byc wieksza od zera");
+    }
+
+    if (
+      Number(validationConfig.quantityHardLimit || 0) > 0 &&
+      normalizedQuantity > Number(validationConfig.quantityHardLimit)
+    ) {
+      throw new Error(
+        validationConfig.quantityHardLimitMessage || "Ilosc przekracza dopuszczalny limit",
+      );
     }
 
     if (normalizedQuantity > quantityWarningThreshold) {
@@ -293,6 +358,10 @@ export default function ManualInventoryProcess() {
       setSubmitting(true);
       setError("");
       await validateOperation();
+      if (stepConfig.confirmation?.enabled === false) {
+        await handleSave();
+        return;
+      }
       setStage("summary");
     } catch (validationError) {
       setError(validationError.message || "Nie mozna przejsc dalej");
@@ -347,6 +416,68 @@ export default function ManualInventoryProcess() {
       setError(saveError.message || "Nie udalo sie zapisac operacji");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function renderDetailStep(step) {
+    switch (step.key) {
+      case "ean":
+        return (
+          <EanStep
+            key={step.key}
+            value={form.ean}
+            onChange={(value) => setField("ean", value)}
+            error=""
+          />
+        );
+      case "sku":
+        return (
+          <SkuStep
+            key={step.key}
+            value={form.sku}
+            onChange={(value) => setField("sku", value)}
+            error=""
+          />
+        );
+      case "lot":
+        return (
+          <LotStep
+            key={step.key}
+            value={form.lot}
+            onChange={(value) => setField("lot", value)}
+            error=""
+          />
+        );
+      case "expiry":
+        return (
+          <ExpiryStep
+            key={step.key}
+            value={form.expiry}
+            onChange={(value) => setField("expiry", value)}
+            error=""
+          />
+        );
+      case "type":
+        return (
+          <TypeStep
+            key={step.key}
+            value={form.type}
+            onChange={(value) => setField("type", value)}
+            error=""
+            options={enabledOperationTypes}
+          />
+        );
+      case "quantity":
+        return (
+          <QuantityStep
+            key={step.key}
+            value={form.quantity}
+            onChange={(value) => setField("quantity", value)}
+            error=""
+          />
+        );
+      default:
+        return null;
     }
   }
 
@@ -501,28 +632,13 @@ export default function ManualInventoryProcess() {
 
       {stage === "details" && (
         <>
-          <EanStep value={form.ean} onChange={(value) => setField("ean", value)} error="" />
-          <SkuStep value={form.sku} onChange={(value) => setField("sku", value)} error="" />
-          <LotStep value={form.lot} onChange={(value) => setField("lot", value)} error="" />
-          <ExpiryStep
-            value={form.expiry}
-            onChange={(value) => setField("expiry", value)}
-            error=""
-          />
-          <TypeStep
-            value={form.type}
-            onChange={(value) => setField("type", value)}
-            error=""
-          />
-          <QuantityStep
-            value={form.quantity}
-            onChange={(value) => setField("quantity", value)}
-            error=""
-          />
+          {orderedSteps
+            .filter((step) => !["location", "confirmation"].includes(step.key))
+            .map(renderDetailStep)}
 
           <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
             <button className="btn-primary full" disabled={submitting} onClick={handleSummary}>
-              Podsumowanie
+              {stepConfig.confirmation?.enabled === false ? "Zapisz operacje" : "Podsumowanie"}
             </button>
             <button className="btn-secondary full" disabled={submitting} onClick={handleAbandonLocation}>
               Zmien lokalizacje

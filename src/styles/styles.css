@@ -1472,3 +1472,113 @@ table th {
     align-items: flex-start;
   }
 }
+
+.process-config-layout-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 18px;
+}
+
+.process-config-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.process-config-step-card {
+  padding: 16px;
+  border-radius: 22px;
+  border: 1px solid rgba(84, 98, 140, 0.1);
+  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(245,248,255,0.84));
+}
+
+.process-config-step-card__main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.process-config-step-card__key {
+  color: var(--app-text-soft);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.process-config-step-card__label {
+  margin-top: 4px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.process-config-step-card__order {
+  width: 110px;
+}
+
+.process-config-step-card__order label,
+.process-config-form-grid label span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--app-text-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.process-config-step-card__toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.process-config-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.72);
+  border: 1px solid rgba(84, 98, 140, 0.1);
+  color: var(--app-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.process-config-toggle.is-disabled {
+  opacity: 0.65;
+}
+
+.process-config-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.process-config-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.process-config-form-grid label {
+  display: block;
+}
+
+@media (max-width: 900px) {
+  .process-config-layout-grid,
+  .process-config-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .process-config-step-card__main {
+    flex-direction: column;
+  }
+
+  .process-config-step-card__order {
+    width: 100%;
+  }
+}

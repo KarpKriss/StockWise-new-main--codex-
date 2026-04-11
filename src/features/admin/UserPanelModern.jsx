@@ -4,7 +4,6 @@ import PageShell from "../../components/layout/PageShell";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import {
-  checkAdminUsersEdgeAvailability,
   createAdminUserAccount,
   deleteAdminUserAccount,
   fetchAdminUsersList,
@@ -54,7 +53,7 @@ export default function UserPanelModern() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(INITIAL_CREATE_FORM);
   const [passwordForm, setPasswordForm] = useState(INITIAL_PASSWORD_FORM);
-  const [edgeAvailable, setEdgeAvailable] = useState(false);
+  const [edgeAvailable, setEdgeAvailable] = useState(null);
   const [rpcAvailable, setRpcAvailable] = useState(false);
 
   async function loadUsers() {
@@ -74,19 +73,6 @@ export default function UserPanelModern() {
 
   useEffect(() => {
     loadUsers();
-  }, []);
-
-  useEffect(() => {
-    async function probeEdge() {
-      try {
-        setEdgeAvailable(await checkAdminUsersEdgeAvailability());
-      } catch (err) {
-        console.error("ADMIN EDGE PROBE ERROR:", err);
-        setEdgeAvailable(false);
-      }
-    }
-
-    probeEdge();
   }, []);
 
   const filteredRows = useMemo(() => {
@@ -157,10 +143,14 @@ export default function UserPanelModern() {
     try {
       setSaving(true);
       await createAdminUserAccount(createForm);
+      setEdgeAvailable(true);
       setCreateForm(INITIAL_CREATE_FORM);
       setCreateOpen(false);
       await loadUsers();
     } catch (err) {
+      if (String(err.message || "").toLowerCase().includes("backend `admin-users` nie odpowiada")) {
+        setEdgeAvailable(false);
+      }
       alert(err.message || "Nie udalo sie utworzyc uzytkownika");
     } finally {
       setSaving(false);
@@ -177,9 +167,13 @@ export default function UserPanelModern() {
     try {
       setSaving(true);
       await resetAdminUserPassword(selectedUser.user_id, passwordForm.newPassword);
+      setEdgeAvailable(true);
       setPasswordForm(INITIAL_PASSWORD_FORM);
       alert("Haslo zostalo zresetowane.");
     } catch (err) {
+      if (String(err.message || "").toLowerCase().includes("backend `admin-users` nie odpowiada")) {
+        setEdgeAvailable(false);
+      }
       alert(err.message || "Nie udalo sie zresetowac hasla");
     } finally {
       setSaving(false);
@@ -192,9 +186,13 @@ export default function UserPanelModern() {
     try {
       setSaving(true);
       await deleteAdminUserAccount(selectedUser.user_id);
+      setEdgeAvailable(true);
       await loadUsers();
       closeEditor();
     } catch (err) {
+      if (String(err.message || "").toLowerCase().includes("backend `admin-users` nie odpowiada")) {
+        setEdgeAvailable(false);
+      }
       alert(err.message || "Nie udalo sie usunac uzytkownika");
     } finally {
       setSaving(false);
@@ -210,7 +208,7 @@ export default function UserPanelModern() {
       backLabel="Powrot do ustawien"
       compact
       actions={
-        <Button disabled={!edgeAvailable} onClick={() => setCreateOpen(true)}>
+        <Button onClick={() => setCreateOpen(true)}>
           <Plus size={16} />
           Dodaj uzytkownika
         </Button>
@@ -262,7 +260,11 @@ export default function UserPanelModern() {
       {!loading && !error && rpcAvailable ? (
         <div className="app-card" style={{ marginBottom: 16 }}>
           Lista i edycja profilu sa obslugiwane przez SQL RPC. Backend edge jest
-          {edgeAvailable ? " aktywny, wiec pelne akcje administratorskie sa dostepne." : " niedostepny, wiec create/reset/delete pozostaja zablokowane."}
+          {edgeAvailable === false
+            ? " niedostepny, wiec create/reset/delete pozostaja zablokowane."
+            : edgeAvailable === true
+              ? " aktywny, wiec pelne akcje administratorskie sa dostepne."
+              : " jeszcze niezweryfikowany. Akcje create/reset/delete sprawdza go przy pierwszym uzyciu."}
         </div>
       ) : null}
 
@@ -432,14 +434,14 @@ export default function UserPanelModern() {
             <p className="helper-note" style={{ marginTop: 14 }}>
               To konto zostanie utworzone przez bezpieczny backend administratorski, bez obchodzenia sesji zalogowanego admina.
             </p>
-            {!edgeAvailable ? (
+            {edgeAvailable === false ? (
               <p className="input-error-text" style={{ marginTop: 10 }}>
                 Tworzenie kont jest chwilowo niedostepne, bo backend `admin-users` nie odpowiada.
               </p>
             ) : null}
 
             <div className="process-actions" style={{ marginTop: 20 }}>
-              <Button disabled={!edgeAvailable} loading={saving} onClick={handleCreateUser}>
+              <Button loading={saving} onClick={handleCreateUser}>
                 <UserPlus size={16} />
                 Utworz konto
               </Button>
@@ -537,7 +539,7 @@ export default function UserPanelModern() {
             <p className="helper-note" style={{ marginTop: 14 }}>
               Zmiana roli, aktywacja, dezaktywacja, pseudonim i numer operatora sa przygotowane pod bezpieczny backend administracyjny.
             </p>
-            {!rpcAvailable || !edgeAvailable ? (
+            {!rpcAvailable || edgeAvailable === false ? (
               <p className="input-error-text" style={{ marginTop: 10 }}>
                 {!rpcAvailable
                   ? "Edycja profilu jest chwilowo niedostepna, bo backend RPC nie odpowiedzial."
@@ -556,11 +558,11 @@ export default function UserPanelModern() {
             </div>
 
             <div className="process-actions" style={{ marginTop: 12 }}>
-              <Button disabled={!edgeAvailable} variant="secondary" loading={saving} onClick={handlePasswordReset}>
+              <Button disabled={edgeAvailable === false} variant="secondary" loading={saving} onClick={handlePasswordReset}>
                 <KeyRound size={16} />
                 Reset hasla
               </Button>
-              <Button disabled={!edgeAvailable} variant="secondary" loading={saving} onClick={handleDeleteUser}>
+              <Button disabled={edgeAvailable === false} variant="secondary" loading={saving} onClick={handleDeleteUser}>
                 <Trash2 size={16} />
                 Usun uzytkownika
               </Button>

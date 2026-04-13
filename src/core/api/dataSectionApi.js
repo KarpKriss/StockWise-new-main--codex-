@@ -81,8 +81,8 @@ export async function fetchLocationsPage({
   sortKey = "code",
 }) {
   const from = (page - 1) * limit;
-  const to = from + limit - 1;
-  let query = supabase.from("locations").select("*", { count: "exact" });
+  const to = from + limit;
+  let query = supabase.from("locations").select("*");
 
   if (search.trim()) {
     query = query.ilike("code", `%${search.trim()}%`);
@@ -94,14 +94,20 @@ export async function fetchLocationsPage({
 
   query = query.order(sortKey || "code", { ascending: true }).range(from, to);
 
-  const { data, count, error } = await query;
+  const { data, error } = await query;
 
   if (error) {
     console.error("FETCH LOCATIONS ERROR:", error);
     throw new Error("Błąd pobierania lokalizacji");
   }
 
-  return { data: data || [], count: count || 0 };
+  const rows = data || [];
+  const hasMore = rows.length > limit;
+
+  return {
+    data: hasMore ? rows.slice(0, limit) : rows,
+    hasMore,
+  };
 }
 
 export async function replaceLocations(rows) {

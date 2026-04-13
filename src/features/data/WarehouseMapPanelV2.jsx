@@ -19,7 +19,7 @@ export default function WarehouseMapPanel() {
   const [sortKey, setSortKey] = useState("code");
   const [zoneFilter, setZoneFilter] = useState("all");
   const [page, setPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -37,7 +37,7 @@ export default function WarehouseMapPanel() {
         sortKey,
       });
       setRows(response.data);
-      setTotalCount(response.count);
+      setHasNextPage(Boolean(response.hasMore));
       setError("");
     } catch (err) {
       setError(err.message || "Blad pobierania mapy magazynu");
@@ -141,8 +141,8 @@ export default function WarehouseMapPanel() {
         onAdd={handleAdd}
         addLabel="Dodaj lokalizacje"
         page={page}
-        totalCount={totalCount}
         onPageChange={setPage}
+        hasNextPage={hasNextPage}
         pageSize={limit}
         searchPlaceholder="Szukaj po kodzie lokalizacji..."
       />

@@ -23,6 +23,7 @@ export default function DataTablePanelModern({
   page = null,
   totalCount = null,
   onPageChange = null,
+  hasNextPage = null,
 }) {
   const [searchValue, setSearchValue] = useState("");
   const [internalPage, setInternalPage] = useState(1);
@@ -36,8 +37,9 @@ export default function DataTablePanelModern({
   }, [data, searchValue, isServerPagination]);
 
   const currentPage = isServerPagination ? page : internalPage;
-  const resolvedTotalCount = isServerPagination ? totalCount || 0 : data.length;
-  const totalPages = Math.max(1, Math.ceil((resolvedTotalCount || 0) / pageSize));
+  const hasKnownTotal = isServerPagination ? typeof totalCount === "number" : true;
+  const resolvedTotalCount = hasKnownTotal ? (isServerPagination ? totalCount || 0 : data.length) : null;
+  const totalPages = hasKnownTotal ? Math.max(1, Math.ceil((resolvedTotalCount || 0) / pageSize)) : null;
 
   const pagedData = useMemo(() => {
     if (isServerPagination) return data;
@@ -47,7 +49,8 @@ export default function DataTablePanelModern({
   }, [currentPage, data, isServerPagination, pageSize]);
 
   function goToPage(nextPage) {
-    const safePage = Math.min(Math.max(1, nextPage), totalPages);
+    const maxPage = totalPages || nextPage;
+    const safePage = Math.min(Math.max(1, nextPage), maxPage);
 
     if (isServerPagination) {
       onPageChange(safePage);
@@ -190,7 +193,15 @@ export default function DataTablePanelModern({
 
         <div className="data-table-pagination">
           <div className="helper-note">
-            Pokazywane: <strong>{pagedData.length}</strong> z <strong>{resolvedTotalCount}</strong> rekordow
+            {hasKnownTotal ? (
+              <>
+                Pokazywane: <strong>{pagedData.length}</strong> z <strong>{resolvedTotalCount}</strong> rekordow
+              </>
+            ) : (
+              <>
+                Pokazywane: <strong>{pagedData.length}</strong> rekordow na tej stronie
+              </>
+            )}
           </div>
           <div className="data-table-pagination__controls">
             <button
@@ -202,12 +213,12 @@ export default function DataTablePanelModern({
               Poprzednia
             </button>
             <div className="data-table-pagination__status">
-              Strona {currentPage} / {totalPages}
+              {hasKnownTotal ? `Strona ${currentPage} / ${totalPages}` : `Strona ${currentPage}`}
             </div>
             <button
               type="button"
               className="app-button app-button--secondary"
-              disabled={currentPage >= totalPages}
+              disabled={hasKnownTotal ? currentPage >= totalPages : hasNextPage === false}
               onClick={() => goToPage(currentPage + 1)}
             >
               Nastepna

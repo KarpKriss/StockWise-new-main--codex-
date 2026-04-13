@@ -104,6 +104,9 @@ export async function reportInventoryProblem({
 
   if (error) {
     console.error("REPORT INVENTORY PROBLEM RPC ERROR:", error);
+    if (String(error.message || "").includes("report_inventory_location_issue")) {
+      throw new Error("Brakuje backendowej funkcji do zapisu problemu. Wdroz SQL dla report_inventory_location_issue.");
+    }
     throw new Error(error.message || "Nie udalo sie zapisac problemu");
   }
 

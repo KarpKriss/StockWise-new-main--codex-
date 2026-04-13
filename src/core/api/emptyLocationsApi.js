@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { reportInventoryProblem } from "./problemsApi";
 
 function normalizeUuidLike(value) {
   const normalized = String(value || "").trim();
@@ -176,20 +177,15 @@ export async function reportLocationProblem({
   reason,
   note,
 }) {
-  const { error } = await supabase.rpc("report_empty_location_issue", {
-    p_location_id: location.id,
-    p_session_id: sessionId,
-    p_user_id: user?.id || null,
-    p_operator_email: user?.email || null,
-    p_zone: zone || null,
-    p_issue_type: reason,
-    p_note: note || null,
+  return reportInventoryProblem({
+    location,
+    user,
+    sessionId,
+    zone,
+    reason,
+    note,
+    sourceProcess: "empty_location",
   });
-
-  if (error) {
-    console.error("REPORT EMPTY LOCATION ISSUE RPC ERROR:", error);
-    throw new Error(error.message || "Nie udalo sie zapisac problemu");
-  }
 }
 
 export async function reportLocationSurplus({

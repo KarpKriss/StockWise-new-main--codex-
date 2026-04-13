@@ -207,8 +207,6 @@ export async function heartbeatWithRetry(session_id, retries = 3) {
  * 🔥 GET ACTIVE SESSION FROM DB (source of truth)
  */
 export async function getActiveSession(user_id) {
-  await cleanupSessions();
-
   const { data, error } = await supabase
     .from('sessions')
     .select('*')

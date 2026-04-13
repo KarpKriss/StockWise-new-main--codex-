@@ -60,6 +60,16 @@ export default function DataTablePanelModern({
     setInternalPage(safePage);
   }
 
+  function handleSearchSubmit() {
+    if (onSearchChange) {
+      onSearchChange(searchValue.trim());
+    }
+
+    if (!isServerPagination) {
+      setInternalPage(1);
+    }
+  }
+
   return (
     <PageShell
       title={title}
@@ -76,7 +86,7 @@ export default function DataTablePanelModern({
     >
       <div className="app-card">
         <div className="products-toolbar">
-          <div className="search-group" style={{ position: "relative", flex: 1 }}>
+          <div className="search-group data-table-search-group" style={{ position: "relative", flex: 1 }}>
             <Search
               size={16}
               style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--app-text-soft)" }}
@@ -88,10 +98,23 @@ export default function DataTablePanelModern({
               placeholder={searchPlaceholder || "Szukaj..."}
               onChange={(event) => {
                 setSearchValue(event.target.value);
-                onSearchChange && onSearchChange(event.target.value);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleSearchSubmit();
+                }
               }}
               style={{ paddingLeft: 40 }}
             />
+            <button
+              type="button"
+              className="app-button app-button--secondary data-table-search-button"
+              onClick={handleSearchSubmit}
+              aria-label="Wyszukaj"
+            >
+              <Search size={16} />
+            </button>
           </div>
 
           {skuList.length > 0 ? (

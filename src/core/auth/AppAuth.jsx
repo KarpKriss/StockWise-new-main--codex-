@@ -12,7 +12,7 @@ function sleep(ms) {
 
 async function fetchProfileWithRetry(authUser, attempt = 1) {
   const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("TIMEOUT")), 12000)
+    setTimeout(() => reject(new Error("TIMEOUT")), 4500)
   );
 
   try {
@@ -31,11 +31,11 @@ async function fetchProfileWithRetry(authUser, attempt = 1) {
 
     return result.data;
   } catch (error) {
-    if (attempt >= 4) {
+    if (attempt >= 2) {
       throw error;
     }
 
-    await sleep(750 * attempt);
+    await sleep(400 * attempt);
     return fetchProfileWithRetry(authUser, attempt + 1);
   }
 }
@@ -80,7 +80,7 @@ function writeCachedUser(user) {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => readCachedUser());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !readCachedUser());
   const userRef = useRef(user);
 
   useEffect(() => {
@@ -145,6 +145,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let active = true;
+    const cachedUser = readCachedUser();
 
     const init = async () => {
       try {
@@ -157,9 +158,11 @@ export function AuthProvider({ children }) {
 
           if (!applied) {
             setUser(null);
+            writeCachedUser(null);
           }
         } else {
           setUser(null);
+          writeCachedUser(null);
         }
       } finally {
         if (active) {
@@ -168,7 +171,12 @@ export function AuthProvider({ children }) {
       }
     };
 
-    init();
+    if (cachedUser?.id && cachedUser?.status === "active") {
+      setLoading(false);
+      init();
+    } else {
+      init();
+    }
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (event, session) => {

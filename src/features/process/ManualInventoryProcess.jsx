@@ -9,6 +9,7 @@ import {
   flushBufferedManualEntries,
   lockManualLocation,
   releaseManualLocation,
+  reportManualLocationProblem,
   resolveManualProduct,
   saveManualEntryWithResilience,
   validateManualLocation,
@@ -21,6 +22,12 @@ import ExpiryStep from "./steps/ExpiryStep";
 import TypeStep from "./steps/TypeStep";
 import QuantityStep from "./steps/QuantityStep";
 import { getOrderedEnabledManualSteps } from "../../core/config/manualProcessConfig";
+
+const PROBLEM_OPTIONS = [
+  "Towar uszkodzony",
+  "Problem z iloscia towaru",
+  "Brak identyfikacji towaru",
+];
 
 const INITIAL_FORM = {
   ean: "",
@@ -57,6 +64,7 @@ export default function ManualInventoryProcess() {
   const [bufferMessage, setBufferMessage] = useState("");
   const [timeWarning, setTimeWarning] = useState("");
   const [savedCountForLocation, setSavedCountForLocation] = useState(0);
+  const [problemNote, setProblemNote] = useState("");
   const locationStartedAtRef = useRef(null);
   const lockedLocationIdRef = useRef(null);
 
@@ -251,6 +259,7 @@ export default function ManualInventoryProcess() {
       setLocationInput(location.code || "");
       setLocationStock(await fetchLocationStockSnapshot(location.id));
       setSavedCountForLocation(0);
+      setProblemNote("");
       resetForm();
       setStage("details");
     } catch (locationError) {
@@ -502,6 +511,7 @@ export default function ManualInventoryProcess() {
       setLocationStock([]);
       setLocationInput("");
       setSavedCountForLocation(0);
+      setProblemNote("");
       setTimeWarning("");
       resetForm();
       setStage("location");
@@ -519,6 +529,7 @@ export default function ManualInventoryProcess() {
       setLocationStock([]);
       setLocationInput("");
       setSavedCountForLocation(0);
+      setProblemNote("");
       setTimeWarning("");
       resetForm();
       setStage("location");
@@ -540,6 +551,43 @@ export default function ManualInventoryProcess() {
       setStage("location");
     } catch (releaseError) {
       setError(releaseError.message || "Nie udalo sie zwrocic lokalizacji do puli");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleReportProblem(reason) {
+    if (!currentLocation?.id) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError("");
+
+      await reportManualLocationProblem({
+        location: currentLocation,
+        user,
+        sessionId: session?.session_id || null,
+        zone: currentLocation.zone || currentZone || null,
+        reason,
+        note: problemNote.trim() || null,
+      });
+
+      lockedLocationIdRef.current = null;
+      locationStartedAtRef.current = null;
+      setCurrentLocation(null);
+      setCurrentZone("");
+      setLocationStock([]);
+      setLocationInput("");
+      setSavedCountForLocation(0);
+      setProblemNote("");
+      setTimeWarning("");
+      resetForm();
+      setStage("location");
+      setBufferMessage("Problem zostal zapisany. Lokalizacja pozostaje zablokowana do czasu zwolnienia w panelu Problemy.");
+    } catch (problemError) {
+      setError(problemError.message || "Nie udalo sie zapisac problemu");
     } finally {
       setSubmitting(false);
     }
@@ -644,8 +692,71 @@ export default function ManualInventoryProcess() {
               Zmien lokalizacje
             </button>
           </div>
+
+          <button
+            className="btn-secondary full"
+            style={{ marginTop: 12 }}
+            disabled={submitting}
+            onClick={() => {
+              setError("");
+              setProblemNote("");
+              setStage("problem");
+            }}
+          >
+            Zglos problem
+          </button>
         </>
       )}
+
+      {stage === "problem" && currentLocation ? (
+        <>
+          <div className="confirm-header">Zglos problem dla lokalizacji</div>
+          <div className="confirm-card" style={{ marginBottom: 20 }}>
+            <div className="confirm-row">
+              <span>Lokalizacja</span>
+              <span>{currentLocation.code}</span>
+            </div>
+            <div className="confirm-row">
+              <span>Strefa</span>
+              <span>{currentLocation.zone || currentZone || "-"}</span>
+            </div>
+          </div>
+
+          <textarea
+            className="input"
+            placeholder="Opcjonalny komentarz do problemu"
+            value={problemNote}
+            onChange={(event) => setProblemNote(event.target.value)}
+            style={{ minHeight: 120, marginBottom: 16 }}
+          />
+
+          <div className="process-choice-grid">
+            {PROBLEM_OPTIONS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className="card selectable process-choice-card"
+                disabled={submitting}
+                onClick={() => handleReportProblem(option)}
+              >
+                <div className="process-choice-card__title">{option}</div>
+                <div className="process-choice-card__desc">
+                  Zapisz problem i zablokuj lokalizacje do czasu zwolnienia w panelu danych.
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <button
+            className="btn-secondary full"
+            style={{ marginTop: 12 }}
+            disabled={submitting}
+            onClick={() => setStage("details")}
+          >
+            Wroc
+          </button>
+        </>
+      ) : null}
 
       {stage === "summary" && (
         <>

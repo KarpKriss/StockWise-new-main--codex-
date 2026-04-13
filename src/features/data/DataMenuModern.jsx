@@ -1,4 +1,4 @@
-import { Database, Map, Package, ScrollText, Tag, Warehouse } from "lucide-react";
+import { AlertTriangle, Database, Map, Package, ScrollText, Tag, Warehouse } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import PageShell from "../../components/layout/PageShell";
 import "../menu/menu-modern.css";
@@ -30,9 +30,15 @@ const items = [
   },
   {
     title: "Historia korekt",
-    description: "Zmiany danych, log korekt i zgloszonych problemow.",
+    description: "Zmiany danych i log korekt bez zgloszen operacyjnych.",
     path: "/data/history",
     icon: ScrollText,
+  },
+  {
+    title: "Problemy",
+    description: "Zgloszenia z procesow inwentaryzacji i blokady lokalizacji do zwolnienia.",
+    path: "/data/problems",
+    icon: AlertTriangle,
   },
 ];
 

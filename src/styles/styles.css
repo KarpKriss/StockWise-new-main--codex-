@@ -385,6 +385,23 @@ textarea:focus {
   min-width: 280px;
 }
 
+.data-table-search-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.data-table-search-group .app-input {
+  flex: 1 1 auto;
+}
+
+.data-table-search-button {
+  min-width: 52px;
+  min-height: 52px;
+  padding: 0 16px;
+  flex: 0 0 auto;
+}
+
 .stock-table,
 .dashboard-table,
 .app-table,

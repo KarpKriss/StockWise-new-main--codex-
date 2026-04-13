@@ -1,6 +1,7 @@
 import { supabase } from "./supabaseClient";
 import { saveEntry } from "./entriesApi";
 import { markLocationOnWork, releaseLocationWork } from "./emptyLocationsApi";
+import { reportInventoryProblem } from "./problemsApi";
 import {
   DEFAULT_MANUAL_PROCESS_CONFIG,
   normalizeManualProcessConfig,
@@ -109,6 +110,10 @@ export async function validateManualLocation({
     throw new Error("Ta lokalizacja zostala juz sprawdzona");
   }
 
+  if (normalizedStatus === "blocked") {
+    throw new Error("Ta lokalizacja jest zablokowana aktywnym problemem i wymaga zwolnienia w panelu Problemy");
+  }
+
   if (
     normalizedStatus === "in_progress" &&
     location.locked_by &&
@@ -145,6 +150,25 @@ export async function completeManualLocation({
     console.error("COMPLETE MANUAL LOCATION RPC ERROR:", error);
     throw new Error(error.message || "Nie udalo sie zakonczyc lokalizacji");
   }
+}
+
+export async function reportManualLocationProblem({
+  location,
+  user,
+  sessionId,
+  zone,
+  reason,
+  note,
+}) {
+  return reportInventoryProblem({
+    location,
+    user,
+    sessionId,
+    zone,
+    reason,
+    note,
+    sourceProcess: "manual_inventory",
+  });
 }
 
 export async function resolveManualProduct({ sku, ean }) {

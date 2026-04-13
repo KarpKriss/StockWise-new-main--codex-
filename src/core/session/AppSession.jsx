@@ -66,10 +66,13 @@ export function SessionProvider({ children }) {
       }
     }
 
-    initSession();
+    const timer = setTimeout(() => {
+      initSession();
+    }, 0);
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [user?.id, user?.site_id, authLoading]);
 

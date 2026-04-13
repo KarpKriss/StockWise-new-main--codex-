@@ -1378,6 +1378,26 @@ table th {
   color: var(--app-primary-strong);
 }
 
+.history-status-chip--edited {
+  background: rgba(255, 193, 92, 0.16);
+  color: #9a5a00;
+}
+
+.history-operation-row--edited {
+  position: relative;
+}
+
+.history-operation-row--edited::before {
+  content: "";
+  position: absolute;
+  left: -14px;
+  top: 16px;
+  bottom: 16px;
+  width: 4px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 193, 92, 0.9), rgba(109, 94, 252, 0.66));
+}
+
 .system-status-metric__label {
   color: var(--app-text-soft);
   font-size: 13px;

@@ -12,6 +12,26 @@ function formatDate(value) {
   return value ? new Date(value).toLocaleString() : "-";
 }
 
+function formatValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
+  return String(value);
+}
+
+function buildChangeRows(row) {
+  const before = row.old_value || {};
+  const after = row.new_value || {};
+  const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+
+  return keys.map((key) => ({
+    key,
+    before: before[key],
+    after: after[key],
+  }));
+}
+
 export default function CorrectionsPanelModern() {
   const { user } = useAuth();
   const [rows, setRows] = useState([]);
@@ -81,7 +101,7 @@ export default function CorrectionsPanelModern() {
   return (
     <PageShell
       title="Historia korekt"
-      subtitle="Przegladaj zmiany danych i zgloszenia problemow w jednym, czytelnym widoku."
+      subtitle="Podglad wszystkich edycji wpisow inwentaryzacyjnych z pelnym before / after i powodem zmiany."
       icon={<FileWarning size={26} />}
       backTo="/data"
       backLabel="Powrot do danych"
@@ -137,7 +157,7 @@ export default function CorrectionsPanelModern() {
               <input
                 style={{ paddingLeft: 40 }}
                 type="text"
-                placeholder="Szukaj w powodzie lub danych..."
+                placeholder="Szukaj w powodach lub danych..."
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
@@ -160,7 +180,7 @@ export default function CorrectionsPanelModern() {
             </div>
             <span className="history-status-chip">
               <CalendarDays size={14} style={{ marginRight: 6 }} />
-              Live audit trail
+              Audit trail korekt
             </span>
           </div>
 
@@ -169,7 +189,7 @@ export default function CorrectionsPanelModern() {
               <thead>
                 <tr>
                   <th>Data</th>
-                  <th>Operator</th>
+                  <th>Kto zmienil</th>
                   <th>Entry ID</th>
                   <th>Powod</th>
                   <th>Szczegoly</th>
@@ -222,27 +242,40 @@ export default function CorrectionsPanelModern() {
 
             <div className="process-meta-grid" style={{ marginBottom: 18 }}>
               <div className="process-meta-item">
-                <div className="process-meta-item__label">Operator</div>
+                <div className="process-meta-item__label">Kto zmienil</div>
                 <div className="process-meta-item__value">{selectedRow.user_id || "BRAK"}</div>
               </div>
               <div className="process-meta-item">
                 <div className="process-meta-item__label">Powod</div>
                 <div className="process-meta-item__value">{selectedRow.reason || "-"}</div>
               </div>
+              <div className="process-meta-item">
+                <div className="process-meta-item__label">Entry ID</div>
+                <div className="process-meta-item__value">{selectedRow.entry_id || "-"}</div>
+              </div>
             </div>
 
-            <div className="history-modal__grid">
-              <div className="process-section-card">
-                <h3 className="process-section-card__title">Stara wartosc</h3>
-                <pre className="history-modal__pre">
-                  {JSON.stringify(selectedRow.old_value || {}, null, 2)}
-                </pre>
-              </div>
-              <div className="process-section-card">
-                <h3 className="process-section-card__title">Nowa wartosc</h3>
-                <pre className="history-modal__pre">
-                  {JSON.stringify(selectedRow.new_value || {}, null, 2)}
-                </pre>
+            <div className="process-section-card">
+              <h3 className="process-section-card__title">Porownanie przed / po</h3>
+              <div className="dashboard-table-scroll">
+                <table className="app-table">
+                  <thead>
+                    <tr>
+                      <th>Pole</th>
+                      <th>Przed</th>
+                      <th>Po</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {buildChangeRows(selectedRow).map((change) => (
+                      <tr key={change.key}>
+                        <td>{change.key}</td>
+                        <td>{formatValue(change.before)}</td>
+                        <td>{formatValue(change.after)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -251,4 +284,3 @@ export default function CorrectionsPanelModern() {
     </PageShell>
   );
 }
-

@@ -108,8 +108,8 @@ function PreviewOverlay({ preview, onConfirm, onCancel }) {
         ) : null}
 
         <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
-          <button disabled={preview.invalid.length > 0} onClick={onConfirm}>
-            Zatwierdz import
+          <button disabled={preview.valid.length === 0} onClick={onConfirm}>
+            Importuj poprawne rekordy
           </button>
           <button onClick={onCancel}>Anuluj</button>
         </div>
@@ -176,7 +176,9 @@ export default function ProductsPanel() {
   const confirmImport = async () => {
     try {
       const result = await insertProducts(preview.valid);
-      alert(`Dodano ${result.inserted} nowych produktow, pominieto ${result.skipped}.`);
+      alert(
+        `Dodano ${result.inserted} nowych produktow, pominieto ${result.skipped}. Bledne rekordy nie zostaly zaimportowane.`
+      );
       setPreview(null);
       loadProducts();
     } catch (err) {

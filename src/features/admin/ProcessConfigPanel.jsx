@@ -107,6 +107,7 @@ export default function ProcessConfigPanel() {
         [key]: {
           ...current.steps[key],
           ...patch,
+          ...(patch.enabled === false ? { mandatory: false } : {}),
         },
       },
     }));
@@ -249,7 +250,7 @@ export default function ProcessConfigPanel() {
                       <ToggleField
                         label="Obowiazkowy"
                         checked={step.mandatory}
-                        disabled={isLocked}
+                        disabled={isLocked || !step.enabled}
                         onChange={(value) => updateStep(step.key, { mandatory: value })}
                       />
                     </div>

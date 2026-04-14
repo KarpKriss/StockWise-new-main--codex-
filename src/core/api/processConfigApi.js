@@ -75,9 +75,12 @@ export async function saveManualProcessAdminConfig({ siteId, config }) {
     };
   }
 
+  console.error("PROCESS CONFIG ADMIN RPC SAVE ERROR:", rpcResult.error);
+
   let existingQuery = supabase
     .from("process_config")
     .select("id, site_id")
+    .order("id", { ascending: false })
     .limit(1);
 
   if (normalizedSiteId) {
@@ -88,7 +91,11 @@ export async function saveManualProcessAdminConfig({ siteId, config }) {
 
   if (existing.error) {
     console.error("PROCESS CONFIG ADMIN EXISTING ERROR:", existing.error);
-    throw new Error("Nie udalo sie zapisac konfiguracji procesu");
+    throw new Error(
+      rpcResult.error?.message ||
+        existing.error.message ||
+        "Nie udalo sie zapisac konfiguracji procesu",
+    );
   }
 
   if (existing.data?.id) {
@@ -104,7 +111,11 @@ export async function saveManualProcessAdminConfig({ siteId, config }) {
 
     if (updateResult.error) {
       console.error("PROCESS CONFIG ADMIN UPDATE ERROR:", updateResult.error);
-      throw new Error("Nie udalo sie zapisac konfiguracji procesu");
+      throw new Error(
+        rpcResult.error?.message ||
+          updateResult.error.message ||
+          "Nie udalo sie zapisac konfiguracji procesu",
+      );
     }
 
     return {
@@ -127,7 +138,11 @@ export async function saveManualProcessAdminConfig({ siteId, config }) {
 
   if (insertResult.error) {
     console.error("PROCESS CONFIG ADMIN INSERT ERROR:", insertResult.error);
-    throw new Error("Nie udalo sie zapisac konfiguracji procesu");
+    throw new Error(
+      rpcResult.error?.message ||
+        insertResult.error.message ||
+        "Nie udalo sie zapisac konfiguracji procesu",
+    );
   }
 
   return {

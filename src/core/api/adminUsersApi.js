@@ -26,19 +26,23 @@ function unwrapFunctionError(error) {
   return new Error(message);
 }
 
-function isEdgeFunctionUnavailable(error) {
-  const message = String(
+function extractErrorMessage(error) {
+  return String(
     error?.context?.json?.error ||
       error?.context?.json?.message ||
       error?.message ||
-      ""
+      "",
   ).toLowerCase();
+}
+
+function isEdgeFunctionUnavailable(error) {
+  const message = extractErrorMessage(error);
 
   return (
     message.includes("failed to send a request to the edge function") ||
-    message.includes("edge function returned a non-2xx status code") ||
     message.includes("functions fetch failed") ||
-    message.includes("function not found")
+    message.includes("function not found") ||
+    message.includes("network request failed")
   );
 }
 

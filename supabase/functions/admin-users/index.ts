@@ -64,7 +64,7 @@ async function getAdminContext(req: Request) {
 
   const { data: adminProfile, error: profileError } = await serviceClient
     .from("profiles")
-    .select("user_id, role, status")
+    .select("user_id, role, status, site_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -76,7 +76,7 @@ async function getAdminContext(req: Request) {
     throw new Error("Brak uprawnien administratora");
   }
 
-  return { serviceClient, user };
+  return { serviceClient, user, adminProfile };
 }
 
 async function listUsers(serviceClient: ReturnType<typeof createClient>) {
@@ -152,7 +152,11 @@ async function listUsers(serviceClient: ReturnType<typeof createClient>) {
   return json(200, { users });
 }
 
-async function createUser(serviceClient: ReturnType<typeof createClient>, body: JsonRecord) {
+async function createUser(
+  serviceClient: ReturnType<typeof createClient>,
+  body: JsonRecord,
+  adminProfile: JsonRecord | null,
+) {
   const payload = (body.payload || {}) as JsonRecord;
   const email = String(payload.email || "").trim().toLowerCase();
   const password = String(payload.password || "");
@@ -160,6 +164,7 @@ async function createUser(serviceClient: ReturnType<typeof createClient>, body: 
   const role = normalizeRole(payload.role);
   const status = normalizeStatus(payload.status || "active");
   const operatorNumber = String(payload.operatorNumber || "").trim();
+  const siteId = String(payload.site_id || payload.siteId || adminProfile?.site_id || "").trim() || null;
 
   if (!email || !password) {
     return json(400, { error: "Email i haslo sa wymagane" });
@@ -187,6 +192,7 @@ async function createUser(serviceClient: ReturnType<typeof createClient>, body: 
         name: name || null,
         role,
         status,
+        site_id: siteId,
         operator_number: operatorNumber || null,
         updated_at: new Date().toISOString(),
       },
@@ -207,6 +213,7 @@ async function createUser(serviceClient: ReturnType<typeof createClient>, body: 
       alias: name,
       role,
       status,
+      site_id: siteId,
       operatorNumber,
       created_at: created.user.created_at,
       last_activity: null,
@@ -332,7 +339,7 @@ Deno.serve(async (req) => {
   try {
     const body = (await req.json()) as JsonRecord;
     const action = String(body.action || "");
-    const { serviceClient, user } = await getAdminContext(req);
+    const { serviceClient, user, adminProfile } = await getAdminContext(req);
 
     switch (action) {
       case "health":
@@ -340,7 +347,7 @@ Deno.serve(async (req) => {
       case "list":
         return await listUsers(serviceClient);
       case "create":
-        return await createUser(serviceClient, body);
+        return await createUser(serviceClient, body, adminProfile as JsonRecord | null);
       case "update":
         return await updateUser(serviceClient, body);
       case "reset-password":

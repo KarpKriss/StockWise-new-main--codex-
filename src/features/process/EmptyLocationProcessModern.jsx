@@ -138,9 +138,12 @@ export default function EmptyLocationProcessModern() {
     quantity: "",
   });
   const [problemNote, setProblemNote] = useState("");
+  const [decisionScanValue, setDecisionScanValue] = useState("");
   const [quickStartInfo, setQuickStartInfo] = useState(null);
   const lockedLocationIdRef = useRef(null);
   const quickStartAttemptedRef = useRef(false);
+  const scanInputRef = useRef(null);
+  const decisionInputRef = useRef(null);
 
   const currentLocation = queue[currentIndex] || null;
   const totalLocations = totalCount || queue.length;
@@ -248,6 +251,32 @@ export default function EmptyLocationProcessModern() {
     };
   }, []);
 
+  useEffect(() => {
+    if (stage !== "scan") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      scanInputRef.current?.focus();
+      scanInputRef.current?.select?.();
+    }, 60);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [stage, currentLocation?.id]);
+
+  useEffect(() => {
+    if (stage !== "decision") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      decisionInputRef.current?.focus();
+      decisionInputRef.current?.select?.();
+    }, 60);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [stage, currentLocation?.id]);
+
   async function activateLocation(location) {
     if (!location?.id || !user?.id) {
       return;
@@ -276,6 +305,7 @@ export default function EmptyLocationProcessModern() {
       setCurrentIndex(0);
       setQuickStartInfo(null);
       setScanValue("");
+      setDecisionScanValue("");
       setProblemNote("");
       setError("");
 
@@ -297,6 +327,7 @@ export default function EmptyLocationProcessModern() {
     const nextIndex = currentIndex + 1;
 
     setScanValue("");
+    setDecisionScanValue("");
     setSurplusData({ ean: "", sku: "", lot: "", quantity: "" });
     setProblemNote("");
 
@@ -321,6 +352,7 @@ export default function EmptyLocationProcessModern() {
     setCurrentIndex(0);
     setQuickStartInfo(null);
     setScanValue("");
+    setDecisionScanValue("");
     setProblemNote("");
     setError("");
     setStage("zones");
@@ -364,7 +396,30 @@ export default function EmptyLocationProcessModern() {
     }
 
     setError("");
+    setDecisionScanValue("");
     setStage("decision");
+  }
+
+  async function handleDecisionScanConfirm() {
+    if (!currentLocation) {
+      return;
+    }
+
+    const normalizedInput = decisionScanValue.trim().toLowerCase();
+    const normalizedLocation = String(currentLocation.code || "").trim().toLowerCase();
+
+    if (!normalizedInput) {
+      setError("Zeskanuj albo wpisz aktualna lokalizacje, aby szybko potwierdzic pusty adres.");
+      return;
+    }
+
+    if (normalizedInput !== normalizedLocation) {
+      setError("Skan nie zgadza sie z aktualna lokalizacja.");
+      return;
+    }
+
+    setError("");
+    await handleConfirmEmpty();
   }
 
   async function handleConfirmEmpty() {
@@ -610,10 +665,17 @@ export default function EmptyLocationProcessModern() {
             <div className="scan-placeholder">{currentLocation.code}</div>
 
             <input
+              ref={scanInputRef}
               className="input"
               placeholder="Zeskanuj lub wpisz kod lokalizacji"
               value={scanValue}
               onChange={(event) => setScanValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleScanConfirm();
+                }
+              }}
             />
 
             <div className="process-actions">
@@ -644,6 +706,25 @@ export default function EmptyLocationProcessModern() {
               <div className="process-meta-item">
                 <div className="process-meta-item__label">Lokalizacja</div>
                 <div className="process-meta-item__value">{currentLocation.code}</div>
+              </div>
+            </div>
+
+            <div className="process-section-card">
+              <h3 className="process-section-card__title">Szybkie potwierdzenie skanem</h3>
+              <div className="process-section-grid">
+                <input
+                  ref={decisionInputRef}
+                  className="input"
+                  placeholder="Zeskanuj aktualna lokalizacje i zatwierdz Enterem"
+                  value={decisionScanValue}
+                  onChange={(event) => setDecisionScanValue(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleDecisionScanConfirm();
+                    }
+                  }}
+                />
               </div>
             </div>
 

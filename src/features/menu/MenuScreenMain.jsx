@@ -5,6 +5,7 @@ import { useSession } from "../../core/session/AppSession";
 import { hasPermission } from "../../core/config/roles";
 import { DEFAULT_MANUAL_PROCESS_CONFIG } from "../../core/config/manualProcessConfig";
 import { fetchManualProcessConfig } from "../../core/api/manualProcessApi";
+import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import PageShell from "../../components/layout/PageShell";
 import BarcodeScannerModal from "../../components/scanner/BarcodeScannerModal";
 import "./menu.css";
@@ -70,6 +71,7 @@ export default function MenuScreenMain() {
   const [quickStartOpen, setQuickStartOpen] = useState(false);
   const [quickStartCode, setQuickStartCode] = useState("");
   const [quickStartSubmitting, setQuickStartSubmitting] = useState(false);
+  const [logoutSubmitting, setLogoutSubmitting] = useState(false);
   const [quickStartError, setQuickStartError] = useState("");
   const [scannerConfig, setScannerConfig] = useState(DEFAULT_MANUAL_PROCESS_CONFIG.scanning);
   const [quickStartScannerOpen, setQuickStartScannerOpen] = useState(false);
@@ -111,7 +113,12 @@ export default function MenuScreenMain() {
   }, [user?.site_id]);
 
   const handleLogout = async () => {
+    if (logoutSubmitting) {
+      return;
+    }
+
     try {
+      setLogoutSubmitting(true);
       if (session) {
         await endSession();
       }
@@ -119,6 +126,7 @@ export default function MenuScreenMain() {
       console.error("END SESSION ON LOGOUT ERROR:", error);
     } finally {
       await logout();
+      setLogoutSubmitting(false);
     }
   };
 
@@ -161,9 +169,9 @@ export default function MenuScreenMain() {
           <button className="app-button app-button--secondary" onClick={() => setQuickStartOpen(true)}>
             Szybki start
           </button>
-          <button className="app-button app-button--primary" onClick={handleLogout}>
+          <Button size="md" loading={logoutSubmitting} loadingLabel="Wylogowuje..." onClick={handleLogout}>
             Wyloguj
-          </button>
+          </Button>
         </>
       }
       compact
@@ -354,6 +362,11 @@ export default function MenuScreenMain() {
         autoCloseOnSuccess={Boolean(scannerConfig.autoCloseOnSuccess)}
         onDetected={(value) => setQuickStartCode(String(value || "").trim())}
         onClose={() => setQuickStartScannerOpen(false)}
+      />
+      <LoadingOverlay
+        open={logoutSubmitting}
+        fullscreen
+        message="Zamykam sesje i wylogowuje operatora ze StockWise..."
       />
     </PageShell>
   );

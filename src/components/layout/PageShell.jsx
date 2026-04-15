@@ -13,6 +13,7 @@ export default function PageShell({
   compact = false,
 }) {
   const navigate = useNavigate();
+  const canGoBack = backTo !== null || typeof onBack === "function";
 
   function handleBackClick() {
     if (typeof onBack === "function") {
@@ -28,7 +29,7 @@ export default function PageShell({
   return (
     <div className={`page-shell ${compact ? "page-shell-compact" : ""}`}>
       <div className="page-shell__back-row">
-        {backTo !== null ? (
+        {canGoBack ? (
           <button
             type="button"
             className="app-icon-button"

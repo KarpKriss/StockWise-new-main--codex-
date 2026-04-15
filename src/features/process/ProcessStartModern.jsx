@@ -1,12 +1,28 @@
 import { Boxes, ScanSearch, Workflow } from "lucide-react";
 import { useState } from "react";
+import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import PageShell from "../../components/layout/PageShell";
+import Button from "../../components/ui/Button";
 import { useSession } from "../../core/session/AppSession";
 import "../menu/menu-modern.css";
 
 export default function ProcessStartModern() {
   const { startSession } = useSession();
   const [selectedType, setSelectedType] = useState(null);
+  const [starting, setStarting] = useState(false);
+
+  async function handleStart() {
+    if (!selectedType || starting) {
+      return;
+    }
+
+    try {
+      setStarting(true);
+      await startSession(selectedType);
+    } finally {
+      setStarting(false);
+    }
+  }
 
   return (
     <PageShell
@@ -49,14 +65,21 @@ export default function ProcessStartModern() {
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <button
-          className="app-button app-button--primary app-button--lg"
-          disabled={!selectedType}
-          onClick={() => startSession(selectedType)}
+        <Button
+          size="lg"
+          loading={starting}
+          loadingLabel="Uruchamiam proces..."
+          disabled={!selectedType || starting}
+          onClick={handleStart}
         >
           Rozpocznij prace
-        </button>
+        </Button>
       </div>
+      <LoadingOverlay
+        open={starting}
+        fullscreen
+        message="Uruchamiam sesje operatora i przygotowuje wybrany proces..."
+      />
     </PageShell>
   );
 }

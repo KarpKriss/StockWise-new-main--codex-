@@ -701,8 +701,8 @@ export default function ManualInventoryProcess() {
       title="Reczna inwentaryzacja"
       subtitle="Na telefonie proces zostaje prosty i pionowy, a na desktopie zamienia sie w spokojny panel roboczy z wyraznym kontekstem sesji obok."
       icon={<ScanSearch size={26} />}
-      backTo="/process"
-      backLabel="Powrot do wyboru procesu"
+      onBack={handleEndSession}
+      backLabel="Zakoncz sesje i wyjdz"
       actions={
         <div className="page-shell__pill">
           <ClipboardList size={14} />
@@ -990,9 +990,6 @@ export default function ManualInventoryProcess() {
               </Button>
               <Button variant="secondary" size="lg" disabled={submitting} onClick={handleEndSession}>
                 Zakoncz sesje
-              </Button>
-              <Button variant="secondary" size="lg" disabled={submitting} onClick={() => navigate("/menu")}>
-                Powrot do menu
               </Button>
             </div>
           </div>

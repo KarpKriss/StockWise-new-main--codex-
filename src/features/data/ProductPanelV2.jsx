@@ -1,8 +1,14 @@
 import React, { useEffect, useState } from "react";
+import Button from "../../components/ui/Button";
 import DataTablePanel from "../../components/data/DataTablePanelModern";
 import ImportPreviewModal from "../../components/data/ImportPreviewModal";
 import { exportToCSV } from "../../utils/csvExport";
-import { fetchProductRows, insertProducts } from "../../core/api/dataSectionApi";
+import {
+  deleteProductRow,
+  fetchProductRows,
+  insertProducts,
+  resetProducts,
+} from "../../core/api/dataSectionApi";
 import { buildProductsImportPreview } from "../../core/upload/dataImports";
 import { useAuth } from "../../core/auth/AppAuth";
 import { fetchImportExportMapping } from "../../core/api/importExportConfigApi";
@@ -17,6 +23,8 @@ export default function ProductsPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mapping, setMapping] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [processing, setProcessing] = useState(false);
 
   async function loadProducts() {
     try {
@@ -76,6 +84,59 @@ export default function ProductsPanel() {
     }
   };
 
+  const openDeleteConfirm = (row) => {
+    setConfirmModal({
+      mode: "delete",
+      title: "Usun produkt",
+      message: `Czy na pewno chcesz usunac produkt ${row.sku}? Operacji nie da sie cofnac.`,
+      confirmLabel: "Tak, usun produkt",
+      row,
+    });
+  };
+
+  const openResetConfirm = () => {
+    setConfirmModal({
+      mode: "reset",
+      title: "Resetuj produkty",
+      message:
+        "Czy na pewno chcesz usunac cala liste produktow? Po tej operacji konieczne bedzie ponowne wgranie produktow od zera.",
+      confirmLabel: "Tak, resetuj produkty",
+    });
+  };
+
+  const closeConfirm = () => {
+    if (!processing) {
+      setConfirmModal(null);
+    }
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmModal) return;
+
+    try {
+      setProcessing(true);
+
+      if (confirmModal.mode === "delete" && confirmModal.row?.id) {
+        await deleteProductRow(confirmModal.row.id);
+        alert(`Usunieto produkt ${confirmModal.row.sku}.`);
+      }
+
+      if (confirmModal.mode === "reset") {
+        await resetProducts();
+        setSearch("");
+        setSortKey("sku");
+        alert("Lista produktow zostala zresetowana. Aby pracowac dalej, wgraj nowy plik produktow.");
+      }
+
+      setConfirmModal(null);
+      await loadProducts();
+    } catch (err) {
+      alert(err.message || "Nie udalo sie wykonac operacji na produktach");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   if (loading) return <div>Ladowanie produktow...</div>;
   if (error) return <div>{error}</div>;
 
@@ -100,6 +161,12 @@ export default function ProductsPanel() {
             fileName: "products.csv",
           })
         }
+        extraActions={
+          <Button variant="secondary" onClick={openResetConfirm}>
+            Resetuj produkty
+          </Button>
+        }
+        onDelete={openDeleteConfirm}
         pageSize={25}
         searchPlaceholder="Szukaj po SKU, EAN lub nazwie..."
       />
@@ -122,6 +189,38 @@ export default function ProductsPanel() {
           onCancel={() => setPreview(null)}
         />
       )}
+
+      {confirmModal ? (
+        <div className="history-modal-overlay" onClick={closeConfirm}>
+          <div className="history-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="history-modal__header">
+              <div>
+                <h2 className="process-panel__title" style={{ fontSize: 26, margin: 0 }}>
+                  {confirmModal.title}
+                </h2>
+                <p className="process-panel__subtitle">{confirmModal.message}</p>
+              </div>
+              <Button variant="secondary" onClick={closeConfirm} disabled={processing}>
+                Zamknij
+              </Button>
+            </div>
+
+            <div className="app-card" style={{ marginTop: 16, border: "1px solid rgba(210, 76, 76, 0.18)" }}>
+              Ta operacja jest nieodwracalna. Jesli produkt ma powiazane dane referencyjne lub ceny,
+              baza moze zablokowac usuniecie i pokazac odpowiedni komunikat.
+            </div>
+
+            <div className="process-actions" style={{ marginTop: 20 }}>
+              <Button loading={processing} onClick={handleConfirmAction}>
+                {confirmModal.confirmLabel}
+              </Button>
+              <Button variant="secondary" onClick={closeConfirm} disabled={processing}>
+                Anuluj
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

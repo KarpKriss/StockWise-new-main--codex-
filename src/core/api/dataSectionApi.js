@@ -325,6 +325,27 @@ export async function insertProducts(rows) {
   return { inserted: newRows.length, skipped: rows.length - newRows.length };
 }
 
+export async function deleteProductRow(id) {
+  const { error } = await supabase.from("products").delete().eq("id", id);
+
+  if (error) {
+    console.error("DELETE PRODUCT ERROR:", error);
+    throw new Error(error.message || "Blad usuwania produktu");
+  }
+}
+
+export async function resetProducts() {
+  const { error } = await supabase
+    .from("products")
+    .delete()
+    .not("id", "is", null);
+
+  if (error) {
+    console.error("RESET PRODUCTS ERROR:", error);
+    throw new Error(error.message || "Blad resetowania listy produktow");
+  }
+}
+
 export async function fetchCorrectionRows() {
   const { data, error } = await supabase
     .from("correction_log")

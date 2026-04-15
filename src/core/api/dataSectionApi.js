@@ -155,6 +155,27 @@ export async function addWarehouseLocation({ code, zone, status = "active" }) {
   }
 }
 
+export async function deleteWarehouseLocation(id) {
+  const { error } = await supabase.from("locations").delete().eq("id", id);
+
+  if (error) {
+    console.error("DELETE LOCATION ERROR:", error);
+    throw new Error(error.message || "Blad usuwania lokalizacji");
+  }
+}
+
+export async function resetWarehouseMap() {
+  const { error } = await supabase
+    .from("locations")
+    .delete()
+    .not("id", "is", null);
+
+  if (error) {
+    console.error("RESET LOCATIONS ERROR:", error);
+    throw new Error("Blad resetowania mapy magazynu");
+  }
+}
+
 export async function fetchPriceRows({ search = "", sortKey = "sku" } = {}) {
   const { data, error } = await supabase
     .from("prices")

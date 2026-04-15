@@ -6,6 +6,7 @@ export default function DataTablePanelModern({
   title,
   columns = [],
   data = [],
+  extraActions = null,
   onImport,
   onExport,
   onSearchChange,
@@ -78,12 +79,15 @@ export default function DataTablePanelModern({
       subtitle="Jednolity widok roboczy do filtrowania, przegladu i utrzymania danych."
       backTo={-1}
       actions={
-        onAdd ? (
-          <button className="app-button app-button--primary" onClick={onAdd}>
-            <Plus size={16} />
-            {addLabel}
-          </button>
-        ) : null
+        <>
+          {extraActions}
+          {onAdd ? (
+            <button className="app-button app-button--primary" onClick={onAdd}>
+              <Plus size={16} />
+              {addLabel}
+            </button>
+          ) : null}
+        </>
       }
     >
       <div className="app-card">

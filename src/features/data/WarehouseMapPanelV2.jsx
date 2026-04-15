@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from "react";
+import Button from "../../components/ui/Button";
 import DataTablePanel from "../../components/data/DataTablePanelModern";
 import ImportPreviewModal from "../../components/data/ImportPreviewModal";
 import { exportToCSV } from "../../utils/csvExport";
 import {
   addWarehouseLocation,
+  deleteWarehouseLocation,
   fetchLocationZones,
   fetchLocationsPage,
   replaceLocations,
+  resetWarehouseMap,
 } from "../../core/api/dataSectionApi";
 import { buildLocationsImportPreview } from "../../core/upload/dataImports";
 import { useAuth } from "../../core/auth/AppAuth";
@@ -26,6 +29,8 @@ export default function WarehouseMapPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mapping, setMapping] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [processing, setProcessing] = useState(false);
   const limit = 50;
 
   async function loadRows() {
@@ -64,6 +69,11 @@ export default function WarehouseMapPanel() {
     loadZones();
   }, []);
 
+  async function refreshZones() {
+    const nextZones = await fetchLocationZones();
+    setZones(nextZones);
+  }
+
   useEffect(() => {
     async function loadMapping() {
       try {
@@ -99,7 +109,7 @@ export default function WarehouseMapPanel() {
       alert(`Zaimportowano ${preview.valid.length} lokalizacji.`);
       setPreview(null);
       setPage(1);
-      loadRows();
+      await refreshZones();
     } catch (err) {
       alert(err.message);
     }
@@ -114,9 +124,70 @@ export default function WarehouseMapPanel() {
     try {
       await addWarehouseLocation({ code, zone, status: "active" });
       setPage(1);
-      loadRows();
+      await refreshZones();
+      if (page === 1) {
+        await loadRows();
+      }
     } catch (err) {
       alert(err.message);
+    }
+  };
+
+  const openDeleteConfirm = (row) => {
+    setConfirmModal({
+      mode: "delete",
+      title: "Usun lokalizacje",
+      message: `Czy na pewno chcesz usunac lokalizacje ${row.code}? Operacji nie da sie cofnac.`,
+      confirmLabel: "Tak, usun lokalizacje",
+      row,
+    });
+  };
+
+  const openResetConfirm = () => {
+    setConfirmModal({
+      mode: "reset",
+      title: "Resetuj mape magazynu",
+      message:
+        "Czy na pewno chcesz zresetowac cala mape magazynu? Wszystkie lokalizacje zostana usuniete i konieczne bedzie ponowne wgranie mapy od zera.",
+      confirmLabel: "Tak, resetuj mape",
+    });
+  };
+
+  const closeConfirm = () => {
+    if (!processing) {
+      setConfirmModal(null);
+    }
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmModal) return;
+
+    try {
+      setProcessing(true);
+
+      if (confirmModal.mode === "delete" && confirmModal.row?.id) {
+        await deleteWarehouseLocation(confirmModal.row.id);
+        alert(`Usunieto lokalizacje ${confirmModal.row.code}.`);
+        await refreshZones();
+        if (page === 1) {
+          await loadRows();
+        }
+      }
+
+      if (confirmModal.mode === "reset") {
+        await resetWarehouseMap();
+        setPage(1);
+        setSearch("");
+        setZoneFilter("all");
+        await refreshZones();
+        alert("Mapa magazynu zostala zresetowana. Aby pracowac dalej, wgraj nowy plik mapy.");
+      }
+
+      setConfirmModal(null);
+    } catch (err) {
+      alert(err.message || "Nie udalo sie wykonac operacji na mapie magazynu");
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -152,6 +223,12 @@ export default function WarehouseMapPanel() {
             fileName: "warehouse-map.csv",
           })
         }
+        extraActions={
+          <Button variant="secondary" onClick={openResetConfirm}>
+            Resetuj mape magazynu
+          </Button>
+        }
+        onDelete={openDeleteConfirm}
         onAdd={handleAdd}
         addLabel="Dodaj lokalizacje"
         page={page}
@@ -178,6 +255,38 @@ export default function WarehouseMapPanel() {
           onCancel={() => setPreview(null)}
         />
       )}
+
+      {confirmModal ? (
+        <div className="history-modal-overlay" onClick={closeConfirm}>
+          <div className="history-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="history-modal__header">
+              <div>
+                <h2 className="process-panel__title" style={{ fontSize: 26, margin: 0 }}>
+                  {confirmModal.title}
+                </h2>
+                <p className="process-panel__subtitle">{confirmModal.message}</p>
+              </div>
+              <Button variant="secondary" onClick={closeConfirm} disabled={processing}>
+                Zamknij
+              </Button>
+            </div>
+
+            <div className="app-card" style={{ marginTop: 16, border: "1px solid rgba(210, 76, 76, 0.18)" }}>
+              Ta operacja jest nieodwracalna. Przed potwierdzeniem upewnij sie, ze chcesz trwale
+              usunac wskazane dane z mapy magazynu.
+            </div>
+
+            <div className="process-actions" style={{ marginTop: 20 }}>
+              <Button loading={processing} onClick={handleConfirmAction}>
+                {confirmModal.confirmLabel}
+              </Button>
+              <Button variant="secondary" onClick={closeConfirm} disabled={processing}>
+                Anuluj
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

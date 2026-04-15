@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ClipboardList, PauseCircle, ScanSearch, ShieldAlert, Warehouse } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import PageShell from "../../components/layout/PageShell";
 import BarcodeScannerModal from "../../components/scanner/BarcodeScannerModal";
 import Button from "../../components/ui/Button";
@@ -1007,6 +1008,11 @@ export default function ManualInventoryProcess() {
         autoCloseOnSuccess={Boolean(scanningConfig.autoCloseOnSuccess)}
         onDetected={handleScannerDetected}
         onClose={closeScanner}
+      />
+      <LoadingOverlay
+        open={submitting}
+        fullscreen
+        message="Aktualizuje lokalizacje i zapisuje operacje magazynowe..."
       />
     </PageShell>
   );

@@ -1,36 +1,29 @@
 import { Navigate } from 'react-router-dom';
+import LoadingOverlay from '../components/loaders/LoadingOverlay';
 import { useAuth } from '../core/auth/AppAuth';
 import { hasPermission, getHomeRoute } from '../core/config/roles';
 
 export default function RoleRoute({ children, permission }) {
   const { user, loading } = useAuth();
 
-  // 🔄 czekamy aż auth się załaduje
   if (loading) {
-    return <div>Loading...</div>;
+    return <LoadingOverlay open fullscreen message="Sprawdzam uprawnienia i konfiguracje widoku..." />;
   }
 
-  // 🔒 brak usera → login
   if (!user || user.status !== 'active') {
-  return <Navigate to="/login" />;
-}
+    return <Navigate to="/login" />;
+  }
 
-  // 🔒 brak roli → blokada (błąd danych)
   if (!user.role) {
-    console.error('Brak roli użytkownika');
+    console.error('Brak roli uzytkownika');
     return <Navigate to="/login" />;
   }
 
   const normalizedRole = user.role.toLowerCase();
-console.log('ROLE CHECK:', {
-  role: normalizedRole,
-  permission,
-  hasAccess: hasPermission(normalizedRole, permission),
-});
-  // 🔒 brak uprawnień
+
   if (!hasPermission(normalizedRole, permission)) {
-  return <Navigate to={getHomeRoute(normalizedRole)} />;
-}
+    return <Navigate to={getHomeRoute(normalizedRole)} />;
+  }
 
   return children;
 }

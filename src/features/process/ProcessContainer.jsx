@@ -1,20 +1,21 @@
-import ProcessStart from './ProcessStartModern.jsx';
-import ProcessFlow from './ProcessFlowV2.jsx';
+import LoadingOverlay from '../../components/loaders/LoadingOverlay';
+import { useSession } from '../../core/session/AppSession';
 import EmptyLocationProcess from './EmptyLocationProcessModern.jsx';
 import ManualInventoryProcess from './ManualInventoryProcess.jsx';
-import { useSession } from '../../core/session/AppSession';
+import ProcessFlow from './ProcessFlowV2.jsx';
+import ProcessStart from './ProcessStartModern.jsx';
 
 export default function ProcessContainer() {
   const { session, loading, processType } = useSession();
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) {
+    return <LoadingOverlay open fullscreen message="Przygotowuje sesje i proces operatora..." />;
+  }
 
-  if (!session) return <ProcessStart />;
+  if (!session || !processType) return <ProcessStart />;
 
-if (!processType) return <ProcessStart />;
+  if (processType === 'empty') return <EmptyLocationProcess />;
+  if (processType === 'manual') return <ManualInventoryProcess />;
 
-if (processType === "empty") return <EmptyLocationProcess />;
-if (processType === "manual") return <ManualInventoryProcess />;
-
-return <ProcessFlow />;
+  return <ProcessFlow />;
 }

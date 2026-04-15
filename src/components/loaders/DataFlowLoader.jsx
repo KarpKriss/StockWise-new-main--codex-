@@ -1,3 +1,5 @@
-export default function DataFlowLoader() {
-  return <div>Ładowanie danych...</div>;
+import LogisticsLoader from './LogisticsLoader';
+
+export default function DataFlowLoader({ message = 'Ladowanie danych magazynowych...' }) {
+  return <LogisticsLoader message={message} />;
 }

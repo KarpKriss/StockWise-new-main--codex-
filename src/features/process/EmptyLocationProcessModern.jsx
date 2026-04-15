@@ -23,6 +23,7 @@ import {
   reportLocationSurplus,
 } from "../../core/api/emptyLocationsApi";
 import PageShell from "../../components/layout/PageShell";
+import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import Button from "../../components/ui/Button";
 import BarcodeScannerModal from "../../components/scanner/BarcodeScannerModal";
 import EanStepModern from "./steps/EanStepModern";
@@ -1018,6 +1019,11 @@ export default function EmptyLocationProcessModern() {
           autoCloseOnSuccess={Boolean(scannerConfig.autoCloseOnSuccess)}
           onDetected={handleScannerDetected}
           onClose={closeScanner}
+        />
+        <LoadingOverlay
+          open={submitting}
+          fullscreen
+          message="Przetwarzam lokalizacje i zapisuje postep kontroli..."
         />
       </div>
     </PageShell>

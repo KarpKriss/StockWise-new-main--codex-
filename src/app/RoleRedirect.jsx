@@ -1,11 +1,14 @@
 import { Navigate } from 'react-router-dom';
+import LoadingOverlay from '../components/loaders/LoadingOverlay';
 import { useAuth } from '../core/auth/AppAuth';
 import { getHomeRoute } from '../core/config/roles';
 
 export default function RoleRedirect() {
   const { user, loading } = useAuth();
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) {
+    return <LoadingOverlay open fullscreen message="Przygotowuje Twoj panel startowy..." />;
+  }
 
   if (!user) return <Navigate to="/login" />;
 

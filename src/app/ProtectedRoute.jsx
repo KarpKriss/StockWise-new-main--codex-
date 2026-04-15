@@ -1,20 +1,17 @@
 import { Navigate } from 'react-router-dom';
+import LoadingOverlay from '../components/loaders/LoadingOverlay';
 import { useAuth } from '../core/auth/AppAuth';
 
 export default function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
 
-  console.log('PROTECTED ROUTE:', { user, loading });
-
-  // 🔄 czekamy aż auth się załaduje
   if (loading) {
-    return <div>Loading...</div>;
+    return <LoadingOverlay open fullscreen message="Sprawdzam dostep i przygotowuje widok..." />;
   }
 
-  // 🔒 brak usera → login
   if (!user || user.status !== 'active') {
-  return <Navigate to="/login" />;
-}
+    return <Navigate to="/login" />;
+  }
 
   return children;
 }

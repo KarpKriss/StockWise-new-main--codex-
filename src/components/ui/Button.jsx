@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import LogisticsLoader from '../loaders/LogisticsLoader';
 
 export default function Button({
   children,
@@ -20,7 +21,7 @@ export default function Button({
       onMouseUp={() => setPressed(false)}
       onMouseLeave={() => setPressed(false)}
     >
-      {loading ? loadingLabel || children : children}
+      {loading ? <LogisticsLoader compact message={loadingLabel || children} /> : children}
     </button>
   );
 }

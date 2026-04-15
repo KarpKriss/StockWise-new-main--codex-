@@ -1,6 +1,12 @@
-import { Barcode } from "lucide-react";
+import { Barcode, Camera } from "lucide-react";
 
-export default function EanStepModern({ value, onChange, error }) {
+export default function EanStepModern({
+  value,
+  onChange,
+  error,
+  scannerEnabled = false,
+  onOpenScanner = null,
+}) {
   return (
     <div className="process-section-card">
       <div className="scan-panel">
@@ -13,12 +19,25 @@ export default function EanStepModern({ value, onChange, error }) {
 
         <div className="scan-placeholder">{value || "Oczekiwanie na skan EAN..."}</div>
 
-        <input
-          className={`input ${error ? "input-error" : ""}`}
-          placeholder="Wpisz EAN recznie"
-          value={value || ""}
-          onChange={(event) => onChange(event.target.value)}
-        />
+        <div style={{ display: "flex", gap: 10, alignItems: "stretch" }}>
+          <input
+            className={`input ${error ? "input-error" : ""}`}
+            placeholder="Wpisz EAN recznie"
+            value={value || ""}
+            onChange={(event) => onChange(event.target.value)}
+          />
+          {scannerEnabled ? (
+            <button
+              type="button"
+              className="app-icon-button"
+              onClick={onOpenScanner}
+              aria-label="Otworz skaner EAN"
+              style={{ minWidth: 46, alignSelf: "stretch" }}
+            >
+              <Camera size={18} />
+            </button>
+          ) : null}
+        </div>
 
         {error ? <div className="input-error-text">{error}</div> : null}
       </div>

@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../core/auth/AppAuth";
 import { useSession } from "../../core/session/AppSession";
 import { hasPermission } from "../../core/config/roles";
+import { DEFAULT_MANUAL_PROCESS_CONFIG } from "../../core/config/manualProcessConfig";
+import { fetchManualProcessConfig } from "../../core/api/manualProcessApi";
 import PageShell from "../../components/layout/PageShell";
+import BarcodeScannerModal from "../../components/scanner/BarcodeScannerModal";
 import "./menu.css";
 import "./menu-modern.css";
 import {
@@ -68,6 +71,44 @@ export default function MenuScreenMain() {
   const [quickStartCode, setQuickStartCode] = useState("");
   const [quickStartSubmitting, setQuickStartSubmitting] = useState(false);
   const [quickStartError, setQuickStartError] = useState("");
+  const [scannerConfig, setScannerConfig] = useState(DEFAULT_MANUAL_PROCESS_CONFIG.scanning);
+  const [quickStartScannerOpen, setQuickStartScannerOpen] = useState(false);
+
+  const loginUrl = useMemo(() => {
+    if (typeof window === "undefined") {
+      return "/login";
+    }
+
+    return `${window.location.origin}/login`;
+  }, []);
+
+  const loginQrUrl = useMemo(
+    () => `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(loginUrl)}`,
+    [loginUrl]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadScannerConfig() {
+      try {
+        const processConfig = await fetchManualProcessConfig(user?.site_id);
+        if (!cancelled) {
+          setScannerConfig(processConfig?.scanning || DEFAULT_MANUAL_PROCESS_CONFIG.scanning);
+        }
+      } catch (error) {
+        console.error("MENU SCANNER CONFIG LOAD ERROR:", error);
+      }
+    }
+
+    if (user?.site_id) {
+      loadScannerConfig();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.site_id]);
 
   const handleLogout = async () => {
     try {
@@ -170,6 +211,68 @@ export default function MenuScreenMain() {
         })}
       </div>
 
+      <div className="app-card" style={{ marginTop: 20 }}>
+        <div className="process-stage-header" style={{ marginBottom: 14 }}>
+          <div className="process-stage-header__icon">
+            <ScanLine size={22} />
+          </div>
+          <div className="process-stage-header__text">
+            <h2>QR do logowania na telefonie</h2>
+            <p>
+              Zeskanuj ten kod z dowolnego komputera albo monitora, aby szybko otworzyc ekran logowania StockWise na telefonie operatora.
+            </p>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(180px, 220px) 1fr",
+            gap: 18,
+            alignItems: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 20,
+              padding: 14,
+              display: "inline-flex",
+              justifyContent: "center",
+              alignItems: "center",
+              width: "fit-content",
+            }}
+          >
+            <img
+              src={loginQrUrl}
+              alt="QR do logowania StockWise"
+              style={{ width: 220, height: 220, display: "block" }}
+            />
+          </div>
+
+          <div>
+            <div className="helper-note" style={{ marginBottom: 10 }}>
+              Link do logowania:
+            </div>
+            <div
+              style={{
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(148, 163, 184, 0.28)",
+                background: "rgba(255,255,255,0.6)",
+                wordBreak: "break-all",
+                fontWeight: 600,
+              }}
+            >
+              {loginUrl}
+            </div>
+            <div className="helper-note" style={{ marginTop: 10 }}>
+              Jesli operator pracuje na innym urzadzeniu, wystarczy zeskanowac QR i zalogowac sie standardowo.
+            </div>
+          </div>
+        </div>
+      </div>
+
       {quickStartOpen ? (
         <div className="history-modal-overlay" onClick={() => setQuickStartOpen(false)}>
           <div className="history-modal" onClick={(event) => event.stopPropagation()}>
@@ -199,19 +302,32 @@ export default function MenuScreenMain() {
 
             <div className="app-field">
               <label className="app-field__label">Skan lokalizacji</label>
-              <div style={{ position: "relative" }}>
-                <ScanLine
-                  size={16}
-                  style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--app-text-soft)" }}
-                />
-                <input
-                  className="app-input"
-                  placeholder="Np. A.01.001.D.3"
-                  value={quickStartCode}
-                  onChange={(event) => setQuickStartCode(event.target.value)}
-                  style={{ paddingLeft: 40 }}
-                  autoFocus
-                />
+              <div style={{ display: "flex", gap: 10, alignItems: "stretch" }}>
+                <div style={{ position: "relative", flex: 1 }}>
+                  <ScanLine
+                    size={16}
+                    style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--app-text-soft)" }}
+                  />
+                  <input
+                    className="app-input"
+                    placeholder="Np. A.01.001.D.3"
+                    value={quickStartCode}
+                    onChange={(event) => setQuickStartCode(event.target.value)}
+                    style={{ paddingLeft: 40 }}
+                    autoFocus
+                  />
+                </div>
+                {scannerConfig.enabled && scannerConfig.fields?.location?.enabled ? (
+                  <button
+                    type="button"
+                    className="app-icon-button"
+                    onClick={() => setQuickStartScannerOpen(true)}
+                    aria-label="Otworz skaner lokalizacji dla szybkiego startu"
+                    style={{ minWidth: 46, alignSelf: "stretch" }}
+                  >
+                    <ScanLine size={18} />
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -228,6 +344,17 @@ export default function MenuScreenMain() {
           </div>
         </div>
       ) : null}
+
+      <BarcodeScannerModal
+        open={quickStartScannerOpen}
+        title="Skanuj lokalizacje startowa"
+        description="Zeskanuj kod lokalizacji aparatem telefonu albo wgraj zdjecie, aby od razu uruchomic szybki start pustych lokalizacji."
+        formats={scannerConfig.fields?.location?.formats || []}
+        preferBackCamera={Boolean(scannerConfig.preferBackCamera)}
+        autoCloseOnSuccess={Boolean(scannerConfig.autoCloseOnSuccess)}
+        onDetected={(value) => setQuickStartCode(String(value || "").trim())}
+        onClose={() => setQuickStartScannerOpen(false)}
+      />
     </PageShell>
   );
 }

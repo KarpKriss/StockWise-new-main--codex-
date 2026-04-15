@@ -24,10 +24,13 @@ import {
 } from "../../core/api/emptyLocationsApi";
 import PageShell from "../../components/layout/PageShell";
 import Button from "../../components/ui/Button";
+import BarcodeScannerModal from "../../components/scanner/BarcodeScannerModal";
 import EanStepModern from "./steps/EanStepModern";
 import SkuStepModern from "./steps/SkuStepModern";
 import LotStepModern from "./steps/LotStepModern";
 import QuantityStepModern from "./steps/QuantityStepModern";
+import { DEFAULT_MANUAL_PROCESS_CONFIG } from "../../core/config/manualProcessConfig";
+import { fetchManualProcessConfig } from "../../core/api/manualProcessApi";
 
 const PROBLEM_OPTIONS = [
   {
@@ -140,6 +143,12 @@ export default function EmptyLocationProcessModern() {
   const [problemNote, setProblemNote] = useState("");
   const [decisionScanValue, setDecisionScanValue] = useState("");
   const [quickStartInfo, setQuickStartInfo] = useState(null);
+  const [scannerConfig, setScannerConfig] = useState(DEFAULT_MANUAL_PROCESS_CONFIG.scanning);
+  const [scannerModal, setScannerModal] = useState({
+    open: false,
+    fieldKey: null,
+    title: "",
+  });
   const lockedLocationIdRef = useRef(null);
   const quickStartAttemptedRef = useRef(false);
   const scanInputRef = useRef(null);
@@ -163,10 +172,22 @@ export default function EmptyLocationProcessModern() {
     async function loadZones() {
       try {
         setLoading(true);
-        const nextZones = await fetchEmptyLocationZones({ siteId: user.site_id });
+        const [zonesResult, configResult] = await Promise.allSettled([
+          fetchEmptyLocationZones({ siteId: user.site_id }),
+          fetchManualProcessConfig(user.site_id),
+        ]);
+
+        if (zonesResult.status === "rejected") {
+          throw zonesResult.reason;
+        }
 
         if (!cancelled) {
-          setZones(nextZones);
+          setZones(zonesResult.value);
+          setScannerConfig(
+            configResult.status === "fulfilled"
+              ? configResult.value?.scanning || DEFAULT_MANUAL_PROCESS_CONFIG.scanning
+              : DEFAULT_MANUAL_PROCESS_CONFIG.scanning
+          );
           setError("");
         }
       } catch (err) {
@@ -263,6 +284,62 @@ export default function EmptyLocationProcessModern() {
 
     return () => window.clearTimeout(timeoutId);
   }, [stage, currentLocation?.id]);
+
+  function getScanFieldConfig(fieldKey) {
+    return scannerConfig.fields?.[fieldKey] || DEFAULT_MANUAL_PROCESS_CONFIG.scanning.fields[fieldKey];
+  }
+
+  function isScannerEnabledForField(fieldKey) {
+    return Boolean(scannerConfig.enabled && getScanFieldConfig(fieldKey)?.enabled);
+  }
+
+  function openScanner(fieldKey, title) {
+    if (!isScannerEnabledForField(fieldKey)) {
+      return;
+    }
+
+    setScannerModal({
+      open: true,
+      fieldKey,
+      title,
+    });
+    setError("");
+  }
+
+  function closeScanner() {
+    setScannerModal({
+      open: false,
+      fieldKey: null,
+      title: "",
+    });
+  }
+
+  function handleScannerDetected(value) {
+    const normalizedValue = String(value || "").trim();
+    if (!normalizedValue || !scannerModal.fieldKey) {
+      return;
+    }
+
+    switch (scannerModal.fieldKey) {
+      case "location":
+        setScanValue(normalizedValue);
+        break;
+      case "decision-location":
+        setDecisionScanValue(normalizedValue);
+        break;
+      case "surplus-ean":
+        setSurplusData((current) => ({ ...current, ean: normalizedValue }));
+        break;
+      case "surplus-sku":
+        setSurplusData((current) => ({ ...current, sku: normalizedValue }));
+        break;
+      case "surplus-lot":
+        setSurplusData((current) => ({ ...current, lot: normalizedValue }));
+        break;
+      default:
+        break;
+    }
+  }
 
   useEffect(() => {
     if (stage !== "decision") {
@@ -664,19 +741,32 @@ export default function EmptyLocationProcessModern() {
 
             <div className="scan-placeholder">{currentLocation.code}</div>
 
-            <input
-              ref={scanInputRef}
-              className="input"
-              placeholder="Zeskanuj lub wpisz kod lokalizacji"
-              value={scanValue}
-              onChange={(event) => setScanValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  handleScanConfirm();
-                }
-              }}
-            />
+            <div style={{ display: "flex", gap: 10, alignItems: "stretch" }}>
+              <input
+                ref={scanInputRef}
+                className="input"
+                placeholder="Zeskanuj lub wpisz kod lokalizacji"
+                value={scanValue}
+                onChange={(event) => setScanValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    handleScanConfirm();
+                  }
+                }}
+              />
+              {isScannerEnabledForField("location") ? (
+                <button
+                  type="button"
+                  className="app-icon-button"
+                  onClick={() => openScanner("location", "Skanuj lokalizacje")}
+                  aria-label="Otworz skaner lokalizacji"
+                  style={{ minWidth: 46, alignSelf: "stretch" }}
+                >
+                  <ScanLine size={18} />
+                </button>
+              ) : null}
+            </div>
 
             <div className="process-actions">
               <Button size="lg" loading={submitting} onClick={handleScanConfirm}>
@@ -725,6 +815,17 @@ export default function EmptyLocationProcessModern() {
                     }
                   }}
                 />
+                {isScannerEnabledForField("location") ? (
+                  <button
+                    type="button"
+                    className="app-icon-button"
+                    onClick={() => openScanner("decision-location", "Skanuj lokalizacje do potwierdzenia")}
+                    aria-label="Otworz skaner potwierdzenia lokalizacji"
+                    style={{ minWidth: 46, alignSelf: "stretch" }}
+                  >
+                    <ScanLine size={18} />
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -834,14 +935,20 @@ export default function EmptyLocationProcessModern() {
               <EanStepModern
                 value={surplusData.ean}
                 onChange={(value) => setSurplusData((current) => ({ ...current, ean: value }))}
+                scannerEnabled={isScannerEnabledForField("ean")}
+                onOpenScanner={() => openScanner("surplus-ean", "Skanuj EAN produktu")}
               />
               <SkuStepModern
                 value={surplusData.sku}
                 onChange={(value) => setSurplusData((current) => ({ ...current, sku: value }))}
+                scannerEnabled={isScannerEnabledForField("sku")}
+                onOpenScanner={() => openScanner("surplus-sku", "Skanuj SKU produktu")}
               />
               <LotStepModern
                 value={surplusData.lot}
                 onChange={(value) => setSurplusData((current) => ({ ...current, lot: value }))}
+                scannerEnabled={isScannerEnabledForField("lot")}
+                onOpenScanner={() => openScanner("surplus-lot", "Skanuj numer LOT")}
               />
               <QuantityStepModern
                 value={surplusData.quantity}
@@ -893,6 +1000,25 @@ export default function EmptyLocationProcessModern() {
             </div>
           </div>
         ) : null}
+
+        <BarcodeScannerModal
+          open={scannerModal.open}
+          title={scannerModal.title}
+          description="Skieruj aparat na kod albo wgraj zdjecie. Odczyt trafia bezposrednio do aktualnego pola procesu pustych lokalizacji."
+          formats={
+            scannerModal.fieldKey?.includes("ean")
+              ? getScanFieldConfig("ean")?.formats || []
+              : scannerModal.fieldKey?.includes("sku")
+                ? getScanFieldConfig("sku")?.formats || []
+                : scannerModal.fieldKey?.includes("lot")
+                  ? getScanFieldConfig("lot")?.formats || []
+                  : getScanFieldConfig("location")?.formats || []
+          }
+          preferBackCamera={Boolean(scannerConfig.preferBackCamera)}
+          autoCloseOnSuccess={Boolean(scannerConfig.autoCloseOnSuccess)}
+          onDetected={handleScannerDetected}
+          onClose={closeScanner}
+        />
       </div>
     </PageShell>
   );

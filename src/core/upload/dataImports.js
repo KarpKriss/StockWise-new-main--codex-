@@ -11,7 +11,12 @@ function normalizeHeader(value) {
 }
 
 function normalizeLookupValue(value) {
-  return String(value || "").trim().toUpperCase();
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, "")
+    .trim()
+    .toUpperCase();
 }
 
 function ensureRequiredImportColumns(headers, mappingConfig, entityKey) {

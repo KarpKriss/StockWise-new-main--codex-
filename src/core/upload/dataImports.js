@@ -19,6 +19,31 @@ function normalizeLookupValue(value) {
     .toUpperCase();
 }
 
+async function fetchAllRows(table, columns, pageSize = 1000) {
+  const rows = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + pageSize - 1;
+    const { data, error } = await supabase.from(table).select(columns).range(from, to);
+
+    if (error) {
+      throw error;
+    }
+
+    const chunk = data || [];
+    rows.push(...chunk);
+
+    if (chunk.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return rows;
+}
+
 function ensureRequiredImportColumns(headers, mappingConfig, entityKey) {
   const entity = IMPORT_EXPORT_ENTITIES[entityKey];
   if (!entity) return;
@@ -76,16 +101,16 @@ export async function buildStockImportPreview(file, mappingConfig) {
     }),
   }));
 
-  const [{ data: locations }, { data: products }] = await Promise.all([
-    supabase.from("locations").select("id, code"),
-    supabase.from("products").select("id, sku"),
+  const [locations, products] = await Promise.all([
+    fetchAllRows("locations", "id, code"),
+    fetchAllRows("products", "id, sku"),
   ]);
 
   const locationMap = Object.fromEntries(
-    (locations || []).map((row) => [normalizeLookupValue(row.code), row.id])
+    locations.map((row) => [normalizeLookupValue(row.code), row.id])
   );
   const productMap = Object.fromEntries(
-    (products || []).map((row) => [normalizeLookupValue(row.sku), row.id])
+    products.map((row) => [normalizeLookupValue(row.sku), row.id])
   );
   const valid = [];
   const invalid = [];
@@ -122,8 +147,10 @@ export async function buildPricesImportPreview(file, mappingConfig) {
   const { headers, data, rawRows = [] } = await parseTabularFile(file);
   ensureRequiredImportColumns(headers, mappingConfig, "prices");
 
-  const { data: products } = await supabase.from("products").select("id, sku");
-  const productMap = Object.fromEntries((products || []).map((row) => [row.sku, row.id]));
+  const products = await fetchAllRows("products", "id, sku");
+  const productMap = Object.fromEntries(
+    products.map((row) => [normalizeLookupValue(row.sku), row.id])
+  );
   const parsed = data.map((row, index) => ({
     sku: resolveMappedValue({
       row,
@@ -144,7 +171,7 @@ export async function buildPricesImportPreview(file, mappingConfig) {
   parsed.forEach((row) => {
     const errors = [];
     const price = Number(row.price);
-    const product_id = productMap[row.sku];
+    const product_id = productMap[normalizeLookupValue(row.sku)];
 
     if (!row.sku) errors.push("Brak SKU");
     else if (!product_id) errors.push("Nieznany SKU");

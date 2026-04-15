@@ -292,7 +292,34 @@ export default function ProcessConfigPanel() {
             </div>
 
             <div className="app-card">
-              <h3>Walidacje i limity</h3>
+              <div className="process-config-card-header">
+                <h3>Walidacje i limity</h3>
+                <div className="regex-help" tabIndex={0}>
+                  <button
+                    type="button"
+                    className="regex-help__button"
+                    aria-label="Instrukcja pisania formatow regex"
+                  >
+                    i
+                  </button>
+                  <div className="regex-help__tooltip" role="tooltip">
+                    <strong>Jak pisac regex</strong>
+                    <span>
+                      <code>^</code> oznacza poczatek tekstu, a <code>$</code> jego koniec.
+                    </span>
+                    <span>
+                      <code>\d</code> to cyfra, <code>{"{4}"}</code> to dokladnie 4 znaki, a
+                      myslnik <code>-</code> wpisujesz doslownie.
+                    </span>
+                    <span>
+                      Przyklad LOT: <code>^\d{"{4}"}-\d{"{3}"}-\d{"{3}"}-\d{"{4}"}$</code>
+                    </span>
+                    <span>
+                      Przyklad bardziej ogolny: <code>^[A-Za-z0-9._/-]{"{1,50}"}$</code>
+                    </span>
+                  </div>
+                </div>
+              </div>
               <div className="process-config-form-grid">
                 <label>
                   <span>Regex LOT</span>

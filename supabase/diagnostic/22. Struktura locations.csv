@@ -1,0 +1,10 @@
+column_name,data_type,is_nullable,column_default
+id,uuid,NO,gen_random_uuid()
+code,text,YES,null
+status,text,YES,'pending'::text
+locked_by,uuid,YES,null
+locked_at,timestamp with time zone,YES,null
+zone,text,YES,null
+site_id,text,YES,null
+last_gap_inventory,timestamp with time zone,YES,null
+session_id,uuid,YES,null

@@ -1,0 +1,8 @@
+table_name,constraint_name,column_name
+prices,unique_product_price,product_id
+profiles,profiles_user_id_unique_constraint,user_id
+sites,sites_code_key,code
+stock,unique_stock,location_id
+stock,unique_stock,product_id
+user_site_access,user_site_access_user_id_site_id_key,user_id
+user_site_access,user_site_access_user_id_site_id_key,site_id

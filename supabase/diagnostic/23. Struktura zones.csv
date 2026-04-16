@@ -1,0 +1,4 @@
+column_name,data_type,is_nullable,column_default
+id,uuid,NO,gen_random_uuid()
+site_id,text,YES,null
+name,text,YES,null

@@ -1,0 +1,6 @@
+id,code,status,locked_by,locked_at,zone,site_id,last_gap_inventory,session_id
+3c42951e-d716-4346-ab56-1c05c8e06294,1.1.01.A.0,pending,null,null,1,SITE_1,null,null
+5b2b6fee-4e09-4762-badc-642edc3f6204,Z.05.003.D.0,pending,null,null,Z,SITE_1,null,null
+d8814e8a-0b98-4c6e-98b1-7cb20c11bd85,Z.05.004.A.0,pending,null,null,Z,SITE_1,null,null
+51dd1088-1098-49cb-8550-3259c08a42d4,Z.05.004.B.0,pending,null,null,Z,SITE_1,null,null
+4aa51cf4-a2bc-4003-91ff-80b04a9b7f4b,Z.05.004.C.0,pending,null,null,Z,SITE_1,null,null

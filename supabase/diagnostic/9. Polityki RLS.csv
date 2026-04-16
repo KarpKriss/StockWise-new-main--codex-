@@ -1,0 +1,21 @@
+schemaname,tablename,policyname,permissive,roles,cmd,qual,with_check
+public,audit_log,select_own_logs,PERMISSIVE,{authenticated},SELECT,(user_id = auth.uid()),null
+public,audit_logs,Allow insert for authenticated,PERMISSIVE,{authenticated},INSERT,null,true
+public,empty_location_inventory_log,empty_location_inventory_log_select_authenticated,PERMISSIVE,{authenticated},SELECT,true,null
+public,empty_location_issues,empty_location_issues_select_authenticated,PERMISSIVE,{authenticated},SELECT,true,null
+public,entries,Users can read own entries,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+public,entries,allow authenticated select entries,PERMISSIVE,{authenticated},SELECT,true,null
+public,entries,block_all_direct_insert,PERMISSIVE,{public},INSERT,null,false
+public,entries,no_direct_insert,PERMISSIVE,{authenticated},INSERT,null,false
+public,entries,select_own_entries,PERMISSIVE,{authenticated},SELECT,(user_id = auth.uid()),null
+public,locations,Allow delete locations,PERMISSIVE,{public},DELETE,true,null
+public,locations,Allow insert locations,PERMISSIVE,{public},INSERT,null,true
+public,locations,Allow read locations,PERMISSIVE,{public},SELECT,true,null
+public,profiles,Users can read own profile,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+public,profiles,Users can update own profile,PERMISSIVE,{public},UPDATE,(auth.uid() = id),null
+public,sessions,Users can insert own sessions,PERMISSIVE,{public},INSERT,null,(auth.uid() = user_id)
+public,sessions,Users can see own sessions,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+public,sessions,allow authenticated select,PERMISSIVE,{authenticated},SELECT,true,null
+public,sessions,allow_insert_sessions,PERMISSIVE,{authenticated},INSERT,null,true
+public,sites,sites_public_read,PERMISSIVE,{public},SELECT,(status = 'active'::text),null
+public,user_site_access,user_site_access_self_read,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null

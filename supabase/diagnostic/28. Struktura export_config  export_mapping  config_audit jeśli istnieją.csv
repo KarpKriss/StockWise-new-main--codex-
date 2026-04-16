@@ -1,0 +1,4 @@
+table_name,column_name,data_type,is_nullable,column_default
+export_config,id,uuid,NO,gen_random_uuid()
+export_config,site_id,text,YES,null
+export_config,mapping,jsonb,YES,null

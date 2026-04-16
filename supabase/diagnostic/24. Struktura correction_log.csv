@@ -1,0 +1,10 @@
+column_name,data_type,is_nullable,column_default
+id,uuid,NO,gen_random_uuid()
+entry_id,uuid,YES,null
+user_id,uuid,YES,null
+reason,text,YES,null
+old_value,jsonb,YES,null
+new_value,jsonb,YES,null
+created_at,timestamp with time zone,YES,now()
+comment,text,YES,null
+site_id,text,YES,null

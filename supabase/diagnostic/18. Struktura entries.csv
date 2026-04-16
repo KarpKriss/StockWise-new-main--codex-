@@ -1,0 +1,23 @@
+column_name,data_type,is_nullable,column_default
+id,uuid,NO,gen_random_uuid()
+session_id,uuid,YES,null
+operator,text,NO,null
+location,text,YES,null
+ean,text,YES,null
+sku,text,YES,null
+lot,text,YES,null
+expiry,date,YES,null
+type,text,YES,null
+quantity,numeric,YES,null
+created_at,timestamp with time zone,YES,now()
+operation_uuid,uuid,YES,null
+user_id,uuid,YES,null
+site_id,text,YES,null
+expiry_date,date,YES,null
+confirmed,boolean,YES,true
+operation_id,uuid,YES,null
+timestamp,timestamp with time zone,YES,now()
+approval_status,text,YES,'pending'::text
+approved_at,timestamp with time zone,YES,null
+approved_by,uuid,YES,null
+updated_at,timestamp with time zone,YES,null

@@ -1,0 +1,6 @@
+id,name,role,site_id,status,created_at,updated_at,failed_attempts,email,login_attempts,lock_until,user_id,operator_number
+a82949a3-68e5-4c25-9dc4-9759fa1232ca,Krzysiek,admin,SITE_1,active,2026-03-16 22:58:13.206815+00,2026-04-14 07:09:58.908044+00,0,test@stockwise.pl,0,null,a82949a3-68e5-4c25-9dc4-9759fa1232ca,null
+cf6d55f5-05eb-46e8-9036-1af523e150af,Pracownik,user,SITE_1,active,2026-03-25 08:30:38.446196+00,2026-04-14 07:08:38.410009+00,0,user@stockwise.pl,0,null,cf6d55f5-05eb-46e8-9036-1af523e150af,OP-14
+e55afbcc-58c7-49c8-9888-078ae455ded7,Lukas,manager,SITE_1,active,2026-03-25 08:32:02.61824+00,2026-04-14 07:09:31.086254+00,0,manager@stockwise.pl,0,null,e55afbcc-58c7-49c8-9888-078ae455ded7,null
+c71bfda0-5a71-4bd1-ac39-01550efbd457,Office,office,SITE_1,active,2026-03-25 08:31:40.175813+00,null,0,office@stockwise.pl,0,null,c71bfda0-5a71-4bd1-ac39-01550efbd457,null
+2824e117-46a5-43c7-9929-debc11bf569c,Superuser,superuser,SITE_1,active,2026-03-25 08:31:14.503711+00,null,0,superuser@stockwise.pl,0,null,2824e117-46a5-43c7-9929-debc11bf569c,null

@@ -1,0 +1,3 @@
+table_name,trigger_name,action_timing,event_manipulation,action_statement
+entries,entries_delete_blocker,BEFORE,DELETE,EXECUTE FUNCTION prevent_entries_delete()
+entries,validate_session,BEFORE,INSERT,EXECUTE FUNCTION check_session_active()

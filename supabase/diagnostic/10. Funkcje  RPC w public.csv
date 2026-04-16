@@ -1,0 +1,2318 @@
+schema_name,function_name,args,returns,definition
+public,admin_update_user_profile,"p_user_id uuid, p_name text, p_role text, p_status text, p_operator_number text","TABLE(user_id uuid, email text, name text, role text, status text, operator_number text, updated_at timestamp with time zone)","CREATE OR REPLACE FUNCTION public.admin_update_user_profile(p_user_id uuid, p_name text DEFAULT NULL::text, p_role text DEFAULT NULL::text, p_status text DEFAULT NULL::text, p_operator_number text DEFAULT NULL::text)
+ RETURNS TABLE(user_id uuid, email text, name text, role text, status text, operator_number text, updated_at timestamp with time zone)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform 1
+  from public.profiles p_admin
+  where p_admin.user_id = auth.uid()
+    and lower(coalesce(p_admin.role, '')) = 'admin';
+
+  if not found then
+    raise exception 'Brak uprawnien administratora';
+  end if;
+
+  update public.profiles p
+  set
+    name = coalesce(nullif(btrim(coalesce(p_name, '')), ''), p.name),
+    role = coalesce(lower(nullif(btrim(coalesce(p_role, '')), '')), p.role),
+    status = coalesce(lower(nullif(btrim(coalesce(p_status, '')), '')), p.status),
+    operator_number = case
+      when p_operator_number is null then p.operator_number
+      else nullif(btrim(p_operator_number), '')
+    end,
+    updated_at = now()
+  where p.user_id = p_user_id;
+
+  return query
+  select
+    p.user_id,
+    p.email,
+    p.name,
+    lower(coalesce(p.role, 'user')) as role,
+    lower(coalesce(p.status, 'inactive')) as status,
+    p.operator_number,
+    p.updated_at
+  from public.profiles p
+  where p.user_id = p_user_id
+  limit 1;
+end;
+$function$
+"
+public,check_session_active,,trigger,"CREATE OR REPLACE FUNCTION public.check_session_active()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+
+    if not exists (
+        select 1
+        from sessions
+        where id = new.session_id
+        and status = 'active'
+    )
+    then
+        raise exception 'Session is not active';
+    end if;
+
+    return new;
+
+end;
+$function$
+"
+public,cleanup_sessions,,void,"CREATE OR REPLACE FUNCTION public.cleanup_sessions()
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+begin
+
+  update sessions
+  set status = 'closed'
+  where status = 'active'
+  and last_activity < now() - interval '5 minutes';
+
+end;
+$function$
+"
+public,close_inactive_sessions,,integer,"CREATE OR REPLACE FUNCTION public.close_inactive_sessions()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_closed_count integer := 0;
+begin
+  with stale_sessions as (
+    update public.sessions
+    set
+      status = 'closed',
+      ended_at = coalesce(ended_at, now()),
+      last_activity = now()
+    where lower(coalesce(status, '')) in ('active', 'paused')
+      and coalesce(last_activity, started_at, created_at) < now() - interval '15 minutes'
+    returning id
+  )
+  select count(*)
+  into v_closed_count
+  from stale_sessions;
+
+  update public.locations
+  set
+    status = 'pending',
+    locked_by = null,
+    locked_at = null,
+    session_id = null
+  where session_id in (
+    select s.id
+    from public.sessions s
+    where lower(coalesce(s.status, '')) = 'closed'
+      and s.ended_at is not null
+  )
+    and lower(coalesce(status, '')) = 'in_progress';
+
+  return v_closed_count;
+end;
+$function$
+"
+public,complete_manual_location_check,"p_location_id uuid, p_session_id uuid, p_user_id uuid, p_operator_email text",void,"CREATE OR REPLACE FUNCTION public.complete_manual_location_check(p_location_id uuid, p_session_id uuid, p_user_id uuid, p_operator_email text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_location public.locations;
+begin
+  update public.locations
+  set
+    status = 'done',
+    locked_by = null,
+    locked_at = null,
+    session_id = null
+  where id = p_location_id
+    and status = 'in_progress'
+    and (locked_by is null or locked_by = p_user_id)
+    and (session_id is null or session_id = p_session_id)
+  returning * into v_location;
+
+  if v_location.id is null then
+    raise exception 'LOCATION_NOT_IN_PROGRESS';
+  end if;
+end;
+$function$
+"
+public,confirm_empty_location,"p_location_id uuid, p_session_id uuid, p_user_id uuid, p_operator_email text, p_zone text",void,"CREATE OR REPLACE FUNCTION public.confirm_empty_location(p_location_id uuid, p_session_id uuid, p_user_id uuid, p_operator_email text, p_zone text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_location public.locations;
+  v_entry_id uuid;
+  v_session_site_id text;
+begin
+  update public.locations
+  set
+    status = 'done',
+    locked_by = null,
+    locked_at = null,
+    session_id = null,
+    last_gap_inventory = now()
+  where id = p_location_id
+    and status = 'in_progress'
+  returning * into v_location;
+
+  if v_location.id is null then
+    raise exception 'LOCATION_NOT_IN_PROGRESS';
+  end if;
+
+  select s.site_id
+  into v_session_site_id
+  from public.sessions s
+  where s.id = p_session_id;
+
+  insert into public.entries (
+    session_id,
+    user_id,
+    operator,
+    site_id,
+    location,
+    ean,
+    sku,
+    lot,
+    type,
+    quantity,
+    confirmed,
+    timestamp,
+    created_at,
+    operation_id
+  )
+  values (
+    p_session_id,
+    p_user_id,
+    p_operator_email,
+    v_session_site_id,
+    v_location.code,
+    null,
+    null,
+    p_zone,
+    'checked_empty',
+    0,
+    true,
+    now(),
+    now(),
+    gen_random_uuid()
+  )
+  returning id into v_entry_id;
+
+  insert into public.empty_location_inventory_log (
+    location_id,
+    session_id,
+    user_id,
+    operator_email,
+    zone,
+    action,
+    related_entry_id
+  ) values (
+    p_location_id,
+    p_session_id,
+    p_user_id,
+    p_operator_email,
+    p_zone,
+    'confirmed_empty',
+    v_entry_id
+  );
+end;
+$function$
+"
+public,end_work_session,p_session_id uuid,void,"CREATE OR REPLACE FUNCTION public.end_work_session(p_session_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  update public.sessions
+  set
+    status = 'closed',
+    ended_at = coalesce(ended_at, now()),
+    last_activity = now()
+  where id = p_session_id
+    and lower(coalesce(status, '')) in ('active', 'paused');
+
+  update public.locations
+  set
+    status = 'pending',
+    locked_by = null,
+    locked_at = null,
+    session_id = null
+  where session_id = p_session_id
+    and lower(coalesce(status, '')) = 'in_progress';
+end;
+$function$
+"
+public,get_admin_auth_logs,"p_user_id uuid, p_limit integer","TABLE(id uuid, created_at timestamp with time zone, user_id uuid, user_email text, user_name text, event_type text, entity text, status text, message text, payload jsonb, source text)","CREATE OR REPLACE FUNCTION public.get_admin_auth_logs(p_user_id uuid DEFAULT NULL::uuid, p_limit integer DEFAULT 200)
+ RETURNS TABLE(id uuid, created_at timestamp with time zone, user_id uuid, user_email text, user_name text, event_type text, entity text, status text, message text, payload jsonb, source text)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform 1
+  from public.profiles p_admin
+  where p_admin.user_id = auth.uid()
+    and lower(coalesce(p_admin.role, '')) = 'admin';
+
+  if not found then
+    raise exception 'Brak uprawnien administratora';
+  end if;
+
+  return query
+  select
+    a.id,
+    a.created_at,
+    a.user_id,
+    coalesce(a.email, p.email) as user_email,
+    coalesce(p.name, p.email, a.email, 'Nieznany uzytkownik') as user_name,
+    a.event_type,
+    'auth'::text as entity,
+    case
+      when a.success then 'success'
+      else 'failed'
+    end as status,
+    coalesce(a.message, a.event_type) as message,
+    coalesce(a.metadata, '{}'::jsonb) as payload,
+    'auth_event_logs'::text as source
+  from public.auth_event_logs a
+  left join public.profiles p
+    on p.user_id = a.user_id
+  where p_user_id is null or a.user_id = p_user_id
+  order by a.created_at desc nulls last
+  limit greatest(coalesce(p_limit, 200), 1);
+end;
+$function$
+"
+public,get_admin_config_change_logs,p_limit integer,"TABLE(id uuid, created_at timestamp with time zone, user_id uuid, user_email text, user_name text, event_type text, entity text, status text, message text, payload jsonb, source text)","CREATE OR REPLACE FUNCTION public.get_admin_config_change_logs(p_limit integer DEFAULT 200)
+ RETURNS TABLE(id uuid, created_at timestamp with time zone, user_id uuid, user_email text, user_name text, event_type text, entity text, status text, message text, payload jsonb, source text)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform 1
+  from public.profiles p_admin
+  where p_admin.user_id = auth.uid()
+    and lower(coalesce(p_admin.role, '')) = 'admin';
+
+  if not found then
+    raise exception 'Brak uprawnien administratora';
+  end if;
+
+  return query
+  select
+    c.id,
+    c.created_at,
+    c.user_id,
+    p.email as user_email,
+    coalesce(p.name, p.email, 'Administrator') as user_name,
+    upper(coalesce(c.action, 'UPDATE')) as event_type,
+    coalesce(c.scope, 'manual_process') as entity,
+    'success'::text as status,
+    'Zmiana konfiguracji procesu'::text as message,
+    jsonb_build_object(
+      'site_id', c.site_id,
+      'before_config', c.before_config,
+      'after_config', c.after_config
+    ) as payload,
+    'config_change_logs'::text as source
+  from public.config_change_logs c
+  left join public.profiles p
+    on p.user_id = c.user_id
+  order by c.created_at desc nulls last
+  limit greatest(coalesce(p_limit, 200), 1);
+end;
+$function$
+"
+public,get_admin_error_logs,p_limit integer,"TABLE(id uuid, created_at timestamp with time zone, user_id uuid, user_email text, user_name text, event_type text, entity text, status text, message text, payload jsonb, source text)","CREATE OR REPLACE FUNCTION public.get_admin_error_logs(p_limit integer DEFAULT 200)
+ RETURNS TABLE(id uuid, created_at timestamp with time zone, user_id uuid, user_email text, user_name text, event_type text, entity text, status text, message text, payload jsonb, source text)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform 1
+  from public.profiles p_admin
+  where p_admin.user_id = auth.uid()
+    and lower(coalesce(p_admin.role, '')) = 'admin';
+
+  if not found then
+    raise exception 'Brak uprawnien administratora';
+  end if;
+
+  return query
+  select
+    c.id,
+    c.created_at,
+    c.user_id,
+    p.email as user_email,
+    coalesce(p.name, p.email, 'Nieznany uzytkownik') as user_name,
+    'CLIENT_ERROR'::text as event_type,
+    coalesce(c.area, 'unknown') as entity,
+    'error'::text as status,
+    c.message,
+    coalesce(c.details, '{}'::jsonb) as payload,
+    'client_error_logs'::text as source
+  from public.client_error_logs c
+  left join public.profiles p
+    on p.user_id = c.user_id
+  order by c.created_at desc nulls last
+  limit greatest(coalesce(p_limit, 200), 1);
+end;
+$function$
+"
+public,get_admin_log_users,,"TABLE(user_id uuid, email text, name text, role text)","CREATE OR REPLACE FUNCTION public.get_admin_log_users()
+ RETURNS TABLE(user_id uuid, email text, name text, role text)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform 1
+  from public.profiles p_admin
+  where p_admin.user_id = auth.uid()
+    and lower(coalesce(p_admin.role, '')) = 'admin';
+
+  if not found then
+    raise exception 'Brak uprawnien administratora';
+  end if;
+
+  return query
+  select
+    p.user_id,
+    p.email,
+    coalesce(nullif(btrim(coalesce(p.name, '')), ''), p.email, 'Nieznany uzytkownik') as name,
+    lower(coalesce(p.role, '')) as role
+  from public.profiles p
+  where p.user_id is not null
+  order by coalesce(p.name, p.email) asc nulls last;
+end;
+$function$
+"
+public,get_admin_system_health_alerts,,"TABLE(code text, title text, category text, severity text, value text, description text, recommendation text)","CREATE OR REPLACE FUNCTION public.get_admin_system_health_alerts()
+ RETURNS TABLE(code text, title text, category text, severity text, value text, description text, recommendation text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+with summary as (
+  select *
+  from public.get_admin_system_health_summary()
+),
+signals as (
+  select
+    'database_connection'::text as code,
+    'Polaczenie z baza'::text as title,
+    'Infrastruktura'::text as category,
+    'healthy'::text as severity,
+    database_status::text as value,
+    'Panel otrzymal odpowiedz z backendu, wiec baza odpowiada.'::text as description,
+    'Brak wymaganej akcji.'::text as recommendation,
+    100 as sort_order
+  from summary
+  union all
+  select 'active_users','Aktywni uzytkownicy','Operacje','healthy',active_users::text,'Liczba unikalnych operatorow z aktywna sesja.','Wartosc informacyjna dla administratora.',90 from summary
+  union all
+  select 'active_sessions','Aktywne sesje','Operacje',case when active_sessions = 0 then 'warning' else 'healthy' end,active_sessions::text,'Liczba sesji oznaczonych jako active.',case when active_sessions = 0 then 'Sprawdz, czy operatorzy moga poprawnie rozpoczynac prace.' else 'Brak wymaganej akcji.' end,89 from summary
+  union all
+  select 'paused_sessions','Sesje wstrzymane','Operacje',case when paused_sessions >= 5 then 'warning' else 'healthy' end,paused_sessions::text,'Liczba sesji w stanie paused.',case when paused_sessions >= 5 then 'Zweryfikuj, czy operatorzy nie porzucili zbyt wielu procesow.' else 'Brak wymaganej akcji.' end,88 from summary
+  union all
+  select 'stale_sessions','Martwe sesje','Operacje',case when stale_sessions >= 3 then 'critical' when stale_sessions > 0 then 'warning' else 'healthy' end,stale_sessions::text,'Aktywne sesje bez swiezej aktywnosci przez co najmniej 15 minut.',case when stale_sessions >= 3 then 'Zalecane czyszczenie sesji i kontrola heartbeat.' when stale_sessions > 0 then 'Zweryfikuj, czy operator nie zostal rozlaczony.' else 'Brak wymaganej akcji.' end,30 from summary
+  union all
+  select 'in_progress_locations','Lokalizacje w toku','Magazyn','healthy',in_progress_locations::text,'Liczba lokalizacji aktualnie przypisanych do operatorow.','Wartosc informacyjna dla administratora.',87 from summary
+  union all
+  select 'stale_locations','Porzucone lokalizacje','Magazyn',case when stale_locations > 0 then 'critical' else 'healthy' end,stale_locations::text,'Lokalizacje in_progress bez zywej sesji lub z przeterminowanym lockiem.',case when stale_locations > 0 then 'Wymagane odblokowanie i przeglad procesu.' else 'Brak wymaganej akcji.' end,20 from summary
+  union all
+  select 'unresolved_issues','Otwarte problemy','Jakosc procesu',case when unresolved_issues >= 5 then 'critical' when unresolved_issues > 0 then 'warning' else 'healthy' end,unresolved_issues::text,'Zgloszenia problemow, ktore nie zostaly jeszcze zamkniete.',case when unresolved_issues >= 5 then 'Priorytetowo przejrzyj otwarte problemy.' when unresolved_issues > 0 then 'Zaplanij przeglad zgloszen.' else 'Brak wymaganej akcji.' end,40 from summary
+  union all
+  select 'recent_entries_1h','Wpisy z ostatniej godziny','Aktywnosc',case when active_sessions > 0 and recent_entries_1h = 0 then 'warning' else 'healthy' end,recent_entries_1h::text,'Liczba wpisow w entries z ostatnich 60 minut.',case when active_sessions > 0 and recent_entries_1h = 0 then 'Sprawdz, czy operatorzy nie utkneli na zapisie lub walidacji.' else 'Brak wymaganej akcji.' end,50 from summary
+  union all
+  select 'locked_accounts','Zablokowane konta','Bezpieczenstwo',case when locked_accounts > 0 then 'warning' else 'healthy' end,locked_accounts::text,'Konta z aktywnym lock_until.',case when locked_accounts > 0 then 'Zweryfikuj, czy blokady sa zamierzone.' else 'Brak wymaganej akcji.' end,60 from summary
+  union all
+  select 'users_without_role','Profile bez roli','Uprawnienia',case when users_without_role > 0 then 'critical' else 'healthy' end,users_without_role::text,'Profile bez przypisanej roli moga miec nieprzewidywalny dostep do modulow.',case when users_without_role > 0 then 'Ustaw role dla wszystkich profilow.' else 'Brak wymaganej akcji.' end,10 from summary
+)
+select
+  code,
+  title,
+  category,
+  severity,
+  value,
+  description,
+  recommendation
+from signals
+order by
+  case severity
+    when 'critical' then 1
+    when 'warning' then 2
+    else 3
+  end,
+  sort_order,
+  title;
+$function$
+"
+public,get_admin_system_health_summary,,"TABLE(overall_status text, overall_label text, database_status text, active_users integer, active_sessions integer, paused_sessions integer, in_progress_locations integer, stale_sessions integer, stale_locations integer, unresolved_issues integer, recent_entries_1h integer, locked_accounts integer, users_without_role integer, generated_at timestamp with time zone)","CREATE OR REPLACE FUNCTION public.get_admin_system_health_summary()
+ RETURNS TABLE(overall_status text, overall_label text, database_status text, active_users integer, active_sessions integer, paused_sessions integer, in_progress_locations integer, stale_sessions integer, stale_locations integer, unresolved_issues integer, recent_entries_1h integer, locked_accounts integer, users_without_role integer, generated_at timestamp with time zone)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+with session_stats as (
+  select
+    count(*) filter (where lower(coalesce(s.status, '')) = 'active')::integer as active_sessions,
+    count(*) filter (where lower(coalesce(s.status, '')) = 'paused')::integer as paused_sessions,
+    count(distinct s.user_id) filter (
+      where lower(coalesce(s.status, '')) = 'active'
+        and s.user_id is not null
+    )::integer as active_users,
+    count(*) filter (
+      where lower(coalesce(s.status, '')) = 'active'
+        and coalesce(s.last_activity, s.started_at, s.created_at) < now() - interval '15 minutes'
+    )::integer as stale_sessions
+  from public.sessions s
+),
+location_stats as (
+  select
+    count(*) filter (where lower(coalesce(l.status, '')) = 'in_progress')::integer as in_progress_locations,
+    count(*) filter (
+      where lower(coalesce(l.status, '')) = 'in_progress'
+        and (
+          coalesce(l.locked_at, now()) < now() - interval '20 minutes'
+          or l.session_id is null
+          or s.id is null
+          or lower(coalesce(s.status, '')) not in ('active', 'paused')
+        )
+    )::integer as stale_locations
+  from public.locations l
+  left join public.sessions s
+    on s.id = l.session_id
+),
+issue_stats as (
+  select
+    count(*) filter (
+      where lower(coalesce(i.status, '')) not in ('resolved', 'closed', 'done')
+    )::integer as unresolved_issues
+  from public.empty_location_issues i
+),
+entry_stats as (
+  select
+    count(*) filter (
+      where coalesce(e.timestamp, e.created_at) >= now() - interval '1 hour'
+    )::integer as recent_entries_1h
+  from public.entries e
+),
+profile_stats as (
+  select
+    count(*) filter (
+      where p.lock_until is not null
+        and p.lock_until > now()
+    )::integer as locked_accounts,
+    count(*) filter (
+      where nullif(btrim(coalesce(p.role, '')), '') is null
+    )::integer as users_without_role
+  from public.profiles p
+),
+calc as (
+  select
+    ss.active_users,
+    ss.active_sessions,
+    ss.paused_sessions,
+    ls.in_progress_locations,
+    ss.stale_sessions,
+    ls.stale_locations,
+    is2.unresolved_issues,
+    es.recent_entries_1h,
+    ps.locked_accounts,
+    ps.users_without_role
+  from session_stats ss
+  cross join location_stats ls
+  cross join issue_stats is2
+  cross join entry_stats es
+  cross join profile_stats ps
+)
+select
+  case
+    when stale_locations > 0 or stale_sessions >= 3 or users_without_role > 0 then 'critical'
+    when unresolved_issues > 0
+      or locked_accounts > 0
+      or paused_sessions >= 5
+      or (active_sessions > 0 and recent_entries_1h = 0)
+    then 'warning'
+    else 'healthy'
+  end as overall_status,
+  case
+    when stale_locations > 0 or stale_sessions >= 3 or users_without_role > 0 then 'Wymagana pilna reakcja administratora'
+    when unresolved_issues > 0
+      or locked_accounts > 0
+      or paused_sessions >= 5
+      or (active_sessions > 0 and recent_entries_1h = 0)
+    then 'System dziala, ale wymaga uwagi'
+    else 'System pracuje stabilnie'
+  end as overall_label,
+  'connected'::text as database_status,
+  active_users,
+  active_sessions,
+  paused_sessions,
+  in_progress_locations,
+  stale_sessions,
+  stale_locations,
+  unresolved_issues,
+  recent_entries_1h,
+  locked_accounts,
+  users_without_role,
+  now() as generated_at
+from calc;
+$function$
+"
+public,get_admin_user_action_logs,"p_user_id uuid, p_limit integer","TABLE(id uuid, created_at timestamp with time zone, user_id uuid, user_email text, user_name text, event_type text, entity text, status text, message text, payload jsonb, source text)","CREATE OR REPLACE FUNCTION public.get_admin_user_action_logs(p_user_id uuid DEFAULT NULL::uuid, p_limit integer DEFAULT 200)
+ RETURNS TABLE(id uuid, created_at timestamp with time zone, user_id uuid, user_email text, user_name text, event_type text, entity text, status text, message text, payload jsonb, source text)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform 1
+  from public.profiles p_admin
+  where p_admin.user_id = auth.uid()
+    and lower(coalesce(p_admin.role, '')) = 'admin';
+
+  if not found then
+    raise exception 'Brak uprawnien administratora';
+  end if;
+
+  return query
+  with merged as (
+    select
+      a.id,
+      a.created_at,
+      a.user_id,
+      p.email as user_email,
+      p.name as user_name,
+      coalesce(a.action, 'AUDIT_EVENT') as event_type,
+      coalesce(a.entity, 'audit_log') as entity,
+      'success'::text as status,
+      coalesce(a.action, 'Zdarzenie audytowe') as message,
+      coalesce(a.payload, '{}'::jsonb) as payload,
+      'audit_log'::text as source
+    from public.audit_log a
+    left join public.profiles p
+      on p.user_id = a.user_id
+
+    union all
+
+    select
+      e.id,
+      e.created_at,
+      e.user_id,
+      coalesce(p.email, e.operator_email) as user_email,
+      p.name as user_name,
+      coalesce(e.action, 'EMPTY_LOCATION_EVENT') as event_type,
+      'empty_location_process'::text as entity,
+      'success'::text as status,
+      coalesce(e.action, 'Akcja procesu pustych lokalizacji') as message,
+      jsonb_build_object(
+        'location_id', e.location_id,
+        'session_id', e.session_id,
+        'zone', e.zone,
+        'related_entry_id', e.related_entry_id,
+        'issue_id', e.issue_id
+      ) as payload,
+      'empty_location_inventory_log'::text as source
+    from public.empty_location_inventory_log e
+    left join public.profiles p
+      on p.user_id = e.user_id
+
+    union all
+
+    select
+      i.id,
+      i.created_at,
+      i.user_id,
+      p.email as user_email,
+      p.name as user_name,
+      coalesce(i.type, 'IMPORT') as event_type,
+      'import'::text as entity,
+      'success'::text as status,
+      concat('Import rekordow: ', coalesce(i.records_count, 0)::text) as message,
+      jsonb_build_object(
+        'records_count', i.records_count,
+        'type', i.type
+      ) as payload,
+      'import_logs'::text as source
+    from public.import_logs i
+    left join public.profiles p
+      on p.user_id = i.user_id
+  )
+  select
+    m.id,
+    m.created_at,
+    m.user_id,
+    m.user_email,
+    coalesce(m.user_name, m.user_email, 'Nieznany uzytkownik') as user_name,
+    m.event_type,
+    m.entity,
+    m.status,
+    m.message,
+    m.payload,
+    m.source
+  from merged m
+  where p_user_id is null or m.user_id = p_user_id
+  order by m.created_at desc nulls last
+  limit greatest(coalesce(p_limit, 200), 1);
+end;
+$function$
+"
+public,get_admin_users_overview,,"TABLE(user_id uuid, email text, name text, role text, status text, operator_number text, last_activity timestamp with time zone, latest_session_status text, last_login_at timestamp with time zone)","CREATE OR REPLACE FUNCTION public.get_admin_users_overview()
+ RETURNS TABLE(user_id uuid, email text, name text, role text, status text, operator_number text, last_activity timestamp with time zone, latest_session_status text, last_login_at timestamp with time zone)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform 1
+  from public.profiles p_admin
+  where p_admin.user_id = auth.uid()
+    and lower(coalesce(p_admin.role, '')) = 'admin';
+
+  if not found then
+    raise exception 'Brak uprawnien administratora';
+  end if;
+
+  return query
+  with latest_sessions as (
+    select distinct on (s.user_id)
+      s.user_id,
+      s.status,
+      coalesce(s.last_activity, s.ended_at, s.started_at, s.created_at) as last_activity
+    from public.sessions s
+    where s.user_id is not null
+    order by s.user_id, coalesce(s.last_activity, s.ended_at, s.started_at, s.created_at) desc
+  ),
+  latest_logins as (
+    select
+      a.user_id,
+      max(a.created_at) as last_login_at
+    from public.auth_event_logs a
+    where lower(coalesce(a.event_type, '')) in ('login_success', 'login')
+      and coalesce(a.success, false) = true
+      and a.user_id is not null
+    group by a.user_id
+  )
+  select
+    p.user_id,
+    p.email,
+    coalesce(nullif(btrim(coalesce(p.name, '')), ''), p.email, 'Nieznany uzytkownik') as name,
+    lower(coalesce(p.role, 'user')) as role,
+    lower(coalesce(p.status, 'inactive')) as status,
+    p.operator_number,
+    ls.last_activity,
+    lower(coalesce(ls.status, '')) as latest_session_status,
+    ll.last_login_at
+  from public.profiles p
+  left join latest_sessions ls
+    on ls.user_id = p.user_id
+  left join latest_logins ll
+    on ll.user_id = p.user_id
+  where p.user_id is not null
+  order by coalesce(p.updated_at, p.created_at) desc nulls last, p.email asc nulls last;
+end;
+$function$
+"
+public,get_dashboard_summary,"p_year integer, p_month integer","TABLE(checked_locations bigint, operations_count bigint, shortages_count bigint, surpluses_count bigint, problems_count bigint, shortage_value numeric, surplus_value numeric, total_difference_value numeric, avg_location_control_minutes numeric, locations_per_hour numeric, avg_operations_per_session numeric, sessions_count bigint, avg_session_minutes numeric, longest_session_minutes numeric)","CREATE OR REPLACE FUNCTION public.get_dashboard_summary(p_year integer DEFAULT NULL::integer, p_month integer DEFAULT NULL::integer)
+ RETURNS TABLE(checked_locations bigint, operations_count bigint, shortages_count bigint, surpluses_count bigint, problems_count bigint, shortage_value numeric, surplus_value numeric, total_difference_value numeric, avg_location_control_minutes numeric, locations_per_hour numeric, avg_operations_per_session numeric, sessions_count bigint, avg_session_minutes numeric, longest_session_minutes numeric)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+with filtered_entries as (
+  select *
+  from public.entries e
+  where (p_year is null or extract(year from coalesce(e.timestamp, e.created_at)) = p_year)
+    and (p_month is null or extract(month from coalesce(e.timestamp, e.created_at)) = p_month)
+),
+entry_values as (
+  select
+    e.location,
+    e.session_id,
+    e.type,
+    e.quantity,
+    coalesce(e.timestamp, e.created_at) as event_at,
+    case
+      when lower(trim(coalesce(e.type, ''))) in ('surplus', 'nadwyzka', 'nadwyżka') then 'surplus'
+      when lower(trim(coalesce(e.type, ''))) in ('shortage', 'brak') then 'shortage'
+      when lower(trim(coalesce(e.type, ''))) = 'problem' then 'problem'
+      when lower(trim(coalesce(e.type, ''))) = 'checked_empty' then 'checked_empty'
+      else lower(trim(coalesce(e.type, '')))
+    end as normalized_type,
+    coalesce(pr.price, 0)::numeric as unit_price
+  from filtered_entries e
+  left join public.products p
+    on p.sku = e.sku
+  left join public.prices pr
+    on pr.product_id = p.id
+),
+filtered_issues as (
+  select *
+  from public.empty_location_issues i
+  where (p_year is null or extract(year from i.created_at) = p_year)
+    and (p_month is null or extract(month from i.created_at) = p_month)
+),
+session_ids_with_entries as (
+  select distinct session_id
+  from filtered_entries
+  where session_id is not null
+),
+filtered_sessions as (
+  select
+    s.*,
+    greatest(
+      extract(epoch from coalesce(s.ended_at, s.last_activity, s.started_at) - s.started_at) / 60.0,
+      0
+    )::numeric as duration_minutes
+  from public.sessions s
+  join session_ids_with_entries se
+    on se.session_id = s.id
+),
+location_spans as (
+  select
+    session_id,
+    location,
+    min(event_at) as first_at,
+    max(event_at) as last_at
+  from entry_values
+  where nullif(trim(location), '') is not null
+  group by session_id, location
+),
+location_stats as (
+  select
+    coalesce(
+      avg(greatest(extract(epoch from last_at - first_at), 0) / 60.0),
+      0
+    )::numeric as avg_location_control_minutes
+  from location_spans
+),
+entry_stats as (
+  select
+    count(distinct nullif(trim(location), ''))::bigint as checked_locations,
+    count(*)::bigint as operations_count,
+    count(*) filter (where normalized_type = 'shortage')::bigint as shortages_count,
+    count(*) filter (where normalized_type = 'surplus')::bigint as surpluses_count,
+    count(*) filter (where normalized_type = 'problem')::bigint as problem_entries_count,
+    coalesce(sum(case when normalized_type = 'shortage' then coalesce(quantity, 0) * unit_price else 0 end), 0)::numeric as shortage_value,
+    coalesce(sum(case when normalized_type = 'surplus' then coalesce(quantity, 0) * unit_price else 0 end), 0)::numeric as surplus_value
+  from entry_values
+),
+issue_stats as (
+  select count(*)::bigint as issue_problems_count
+  from filtered_issues
+),
+session_stats as (
+  select
+    count(*)::bigint as sessions_count,
+    coalesce(avg(duration_minutes), 0)::numeric as avg_session_minutes,
+    coalesce(max(duration_minutes), 0)::numeric as longest_session_minutes,
+    coalesce(sum(duration_minutes), 0)::numeric as total_session_minutes
+  from filtered_sessions
+)
+select
+  es.checked_locations,
+  es.operations_count,
+  es.shortages_count,
+  es.surpluses_count,
+  (es.problem_entries_count + is2.issue_problems_count)::bigint as problems_count,
+  round(es.shortage_value, 2) as shortage_value,
+  round(es.surplus_value, 2) as surplus_value,
+  round(es.shortage_value + es.surplus_value, 2) as total_difference_value,
+  round(ls.avg_location_control_minutes, 2) as avg_location_control_minutes,
+  round(
+    case
+      when ss.total_session_minutes > 0
+        then es.checked_locations::numeric / (ss.total_session_minutes / 60.0)
+      else 0
+    end,
+    2
+  ) as locations_per_hour,
+  round(
+    case
+      when ss.sessions_count > 0
+        then es.operations_count::numeric / ss.sessions_count
+      else 0
+    end,
+    2
+  ) as avg_operations_per_session,
+  ss.sessions_count,
+  round(ss.avg_session_minutes, 2) as avg_session_minutes,
+  round(ss.longest_session_minutes, 2) as longest_session_minutes
+from entry_stats es
+cross join issue_stats is2
+cross join session_stats ss
+cross join location_stats ls;
+$function$
+"
+public,get_dashboard_zone_stats,"p_year integer, p_month integer","TABLE(zone text, checked_locations bigint, operations_count bigint, shortages_count bigint, surpluses_count bigint, problems_count bigint, shortage_value numeric, surplus_value numeric, total_difference_value numeric)","CREATE OR REPLACE FUNCTION public.get_dashboard_zone_stats(p_year integer DEFAULT NULL::integer, p_month integer DEFAULT NULL::integer)
+ RETURNS TABLE(zone text, checked_locations bigint, operations_count bigint, shortages_count bigint, surpluses_count bigint, problems_count bigint, shortage_value numeric, surplus_value numeric, total_difference_value numeric)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+with filtered_entries as (
+  select *
+  from public.entries e
+  where (p_year is null or extract(year from coalesce(e.timestamp, e.created_at)) = p_year)
+    and (p_month is null or extract(month from coalesce(e.timestamp, e.created_at)) = p_month)
+),
+entry_values as (
+  select
+    coalesce(nullif(l.zone, ''), 'Nieprzypisana') as zone,
+    e.location,
+    e.type,
+    e.quantity,
+    case
+      when lower(trim(coalesce(e.type, ''))) in ('surplus', 'nadwyzka', 'nadwyżka') then 'surplus'
+      when lower(trim(coalesce(e.type, ''))) in ('shortage', 'brak') then 'shortage'
+      when lower(trim(coalesce(e.type, ''))) = 'problem' then 'problem'
+      when lower(trim(coalesce(e.type, ''))) = 'checked_empty' then 'checked_empty'
+      else lower(trim(coalesce(e.type, '')))
+    end as normalized_type,
+    coalesce(pr.price, 0)::numeric as unit_price
+  from filtered_entries e
+  left join public.locations l
+    on l.code = e.location
+  left join public.products p
+    on p.sku = e.sku
+  left join public.prices pr
+    on pr.product_id = p.id
+),
+issue_values as (
+  select
+    coalesce(nullif(i.zone, ''), 'Nieprzypisana') as zone,
+    count(*)::bigint as problems_count
+  from public.empty_location_issues i
+  where (p_year is null or extract(year from i.created_at) = p_year)
+    and (p_month is null or extract(month from i.created_at) = p_month)
+  group by coalesce(nullif(i.zone, ''), 'Nieprzypisana')
+),
+entry_zone_stats as (
+  select
+    zone,
+    count(distinct nullif(trim(location), ''))::bigint as checked_locations,
+    count(*)::bigint as operations_count,
+    count(*) filter (where normalized_type = 'shortage')::bigint as shortages_count,
+    count(*) filter (where normalized_type = 'surplus')::bigint as surpluses_count,
+    count(*) filter (where normalized_type = 'problem')::bigint as entry_problems_count,
+    coalesce(sum(case when normalized_type = 'shortage' then coalesce(quantity, 0) * unit_price else 0 end), 0)::numeric as shortage_value,
+    coalesce(sum(case when normalized_type = 'surplus' then coalesce(quantity, 0) * unit_price else 0 end), 0)::numeric as surplus_value
+  from entry_values
+  group by zone
+)
+select
+  coalesce(ezs.zone, iv.zone) as zone,
+  coalesce(ezs.checked_locations, 0) as checked_locations,
+  coalesce(ezs.operations_count, 0) as operations_count,
+  coalesce(ezs.shortages_count, 0) as shortages_count,
+  coalesce(ezs.surpluses_count, 0) as surpluses_count,
+  coalesce(ezs.entry_problems_count, 0) + coalesce(iv.problems_count, 0) as problems_count,
+  round(coalesce(ezs.shortage_value, 0), 2) as shortage_value,
+  round(coalesce(ezs.surplus_value, 0), 2) as surplus_value,
+  round(coalesce(ezs.shortage_value, 0) + coalesce(ezs.surplus_value, 0), 2) as total_difference_value
+from entry_zone_stats ezs
+full outer join issue_values iv
+  on iv.zone = ezs.zone
+order by coalesce(ezs.zone, iv.zone);
+$function$
+"
+public,get_empty_location_zones,p_site_id uuid,TABLE(zone text),"CREATE OR REPLACE FUNCTION public.get_empty_location_zones(p_site_id uuid DEFAULT NULL::uuid)
+ RETURNS TABLE(zone text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select distinct l.zone
+  from public.locations l
+  where l.status in ('active', 'pending')
+    and l.zone is not null
+    and l.zone <> ''
+    and (p_site_id is null or l.site_id = p_site_id)
+  order by l.zone asc;
+$function$
+"
+public,get_empty_locations_for_zone,"p_zone text, p_site_id uuid","TABLE(id uuid, code text, zone text, status text, locked_by uuid, locked_at timestamp with time zone, session_id uuid, last_gap_inventory timestamp with time zone)","CREATE OR REPLACE FUNCTION public.get_empty_locations_for_zone(p_zone text, p_site_id uuid DEFAULT NULL::uuid)
+ RETURNS TABLE(id uuid, code text, zone text, status text, locked_by uuid, locked_at timestamp with time zone, session_id uuid, last_gap_inventory timestamp with time zone)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select
+    l.id,
+    l.code,
+    l.zone,
+    l.status,
+    l.locked_by,
+    l.locked_at,
+    l.session_id,
+    l.last_gap_inventory
+  from public.locations l
+  left join public.stock s
+    on s.location_id = l.id
+  where l.zone = p_zone
+    and l.status in ('active', 'pending')
+    and (p_site_id is null or l.site_id = p_site_id)
+  group by l.id, l.code, l.zone, l.status, l.locked_by, l.locked_at, l.session_id, l.last_gap_inventory
+  having count(s.id) = 0
+  order by l.code asc;
+$function$
+"
+public,get_login_attempts,p_email text,json,"CREATE OR REPLACE FUNCTION public.get_login_attempts(p_email text)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_profile profiles%rowtype;
+begin
+  select *
+  into v_profile
+  from profiles
+  where lower(trim(email)) = lower(trim(p_email))
+  limit 1;
+
+  return json_build_object(
+    'attempts', coalesce(v_profile.login_attempts, 0),
+    'lock_until', v_profile.lock_until
+  );
+end;
+$function$
+"
+public,get_manual_process_admin_config,p_site_id text,"TABLE(id uuid, site_id text, validation_rules jsonb)","CREATE OR REPLACE FUNCTION public.get_manual_process_admin_config(p_site_id text DEFAULT NULL::text)
+ RETURNS TABLE(id uuid, site_id text, validation_rules jsonb)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform 1
+  from public.profiles p_admin
+  where p_admin.user_id = auth.uid()
+    and lower(coalesce(p_admin.role, '')) = 'admin';
+
+  if not found then
+    raise exception 'Brak uprawnien administratora';
+  end if;
+
+  return query
+  select
+    pc.id,
+    pc.site_id,
+    coalesce(pc.validation_rules, '{}'::jsonb) as validation_rules
+  from public.process_config pc
+  where coalesce(pc.site_id, '') = coalesce(p_site_id, '')
+  order by pc.id desc
+  limit 1;
+end;
+$function$
+"
+public,get_user_profile,user_id_input uuid,"TABLE(user_id uuid, role text, site_id text, status text)","CREATE OR REPLACE FUNCTION public.get_user_profile(user_id_input uuid)
+ RETURNS TABLE(user_id uuid, role text, site_id text, status text)
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  select 
+    p.id as user_id,
+    p.role,
+    p.site_id,
+    p.status
+  from profiles p
+  where p.id = user_id_input;
+$function$
+"
+public,handle_new_user,,trigger,"CREATE OR REPLACE FUNCTION public.handle_new_user()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+begin
+  insert into public.profiles (
+    id,
+    user_id,
+    email,
+    name,
+    role,
+    site_id,
+    status,
+    operator_number,
+    created_at,
+    updated_at,
+    failed_attempts,
+    login_attempts
+  )
+  values (
+    new.id,
+    new.id,
+    new.email,
+    nullif(coalesce(new.raw_user_meta_data ->> 'alias', new.raw_user_meta_data ->> 'name', ''), ''),
+    lower(coalesce(nullif(new.raw_user_meta_data ->> 'role', ''), 'user')),
+    nullif(coalesce(new.raw_user_meta_data ->> 'site_id', ''), ''),
+    lower(coalesce(nullif(new.raw_user_meta_data ->> 'status', ''), 'active')),
+    nullif(coalesce(new.raw_user_meta_data ->> 'operator_number', ''), ''),
+    now(),
+    now(),
+    0,
+    0
+  )
+  on conflict (id) do update
+  set
+    user_id = excluded.user_id,
+    email = coalesce(excluded.email, public.profiles.email),
+    name = coalesce(excluded.name, public.profiles.name),
+    role = coalesce(excluded.role, public.profiles.role),
+    site_id = coalesce(excluded.site_id, public.profiles.site_id),
+    status = coalesce(excluded.status, public.profiles.status),
+    operator_number = coalesce(excluded.operator_number, public.profiles.operator_number),
+    updated_at = now();
+
+  return new;
+end;
+$function$
+"
+public,increment_login_attempts,p_email text,void,"CREATE OR REPLACE FUNCTION public.increment_login_attempts(p_email text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+begin
+  update profiles
+  set
+    login_attempts = coalesce(login_attempts, 0) + 1,
+    lock_until = case
+      when coalesce(login_attempts, 0) + 1 >= 5
+        then now() + interval '15 minutes'
+      else lock_until
+    end
+  where email = p_email;
+end;
+$function$
+"
+public,insert_entry,payload jsonb,uuid,"CREATE OR REPLACE FUNCTION public.insert_entry(payload jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_session record;
+  v_entry_id uuid;
+begin
+  select *
+  into v_session
+  from public.sessions
+  where id = (payload->>'session_id')::uuid;
+
+  if v_session is null then
+    raise exception 'SESSION_NOT_FOUND';
+  end if;
+
+  if v_session.user_id != auth.uid() then
+    raise exception 'SESSION_NOT_OWNED';
+  end if;
+
+  if not is_session_active(v_session.id) then
+    raise exception 'SESSION_TIMEOUT';
+  end if;
+
+  if payload->>'location' is null then
+    raise exception 'MISSING_LOCATION';
+  end if;
+
+  if payload->>'sku' is null then
+    raise exception 'MISSING_SKU';
+  end if;
+
+  if payload->>'quantity' is null then
+    raise exception 'MISSING_QUANTITY';
+  end if;
+
+  insert into public.entries (
+    session_id,
+    user_id,
+    operator,
+    site_id,
+    location,
+    ean,
+    sku,
+    lot,
+    expiry,
+    expiry_date,
+    type,
+    quantity,
+    approval_status,
+    created_at,
+    updated_at,
+    operation_id,
+    timestamp
+  )
+  values (
+    v_session.id,
+    v_session.user_id,
+    v_session.operator,
+    v_session.site_id,
+    payload->>'location',
+    payload->>'ean',
+    payload->>'sku',
+    payload->>'lot',
+    nullif(payload->>'expiry', '')::date,
+    nullif(payload->>'expiry_date', '')::date,
+    payload->>'type',
+    (payload->>'quantity')::numeric,
+    coalesce(nullif(payload->>'approval_status', ''), 'pending'),
+    now(),
+    now(),
+    coalesce((payload->>'operation_id')::uuid, gen_random_uuid()),
+    coalesce((payload->>'timestamp')::timestamptz, now())
+  )
+  returning id into v_entry_id;
+
+  insert into public.audit_log (
+    user_id,
+    action,
+    payload,
+    created_at
+  )
+  values (
+    v_session.user_id,
+    'CREATE_ENTRY',
+    jsonb_build_object(
+      'entry_id', v_entry_id,
+      'session_id', v_session.id,
+      'payload', payload
+    ),
+    now()
+  );
+
+  return v_entry_id;
+end;
+$function$
+"
+public,is_session_active,p_session_id uuid,boolean,"CREATE OR REPLACE FUNCTION public.is_session_active(p_session_id uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+AS $function$
+declare
+  v_status text;
+  v_last_activity timestamp;
+begin
+
+  select status, last_activity
+  into v_status, v_last_activity
+  from sessions
+  where id = p_session_id;
+
+  if v_status is null then
+    return false;
+  end if;
+
+  if v_status != 'active' then
+    return false;
+  end if;
+
+  if v_last_activity < now() - interval '5 minutes' then
+    return false;
+  end if;
+
+  return true;
+
+end;
+$function$
+"
+public,log_auth_event,"p_email text, p_user_id uuid, p_event_type text, p_success boolean, p_message text",void,"CREATE OR REPLACE FUNCTION public.log_auth_event(p_email text DEFAULT NULL::text, p_user_id uuid DEFAULT NULL::uuid, p_event_type text DEFAULT NULL::text, p_success boolean DEFAULT false, p_message text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  insert into public.auth_event_logs (
+    user_id,
+    email,
+    event_type,
+    success,
+    message
+  )
+  values (
+    p_user_id,
+    nullif(btrim(coalesce(p_email, '')), ''),
+    coalesce(p_event_type, 'UNKNOWN'),
+    coalesce(p_success, false),
+    nullif(btrim(coalesce(p_message, '')), '')
+  );
+end;
+$function$
+"
+public,log_client_error,"p_user_id uuid, p_area text, p_message text, p_details jsonb",void,"CREATE OR REPLACE FUNCTION public.log_client_error(p_user_id uuid DEFAULT NULL::uuid, p_area text DEFAULT NULL::text, p_message text DEFAULT NULL::text, p_details jsonb DEFAULT '{}'::jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  insert into public.client_error_logs (
+    user_id,
+    area,
+    message,
+    details
+  )
+  values (
+    p_user_id,
+    coalesce(nullif(btrim(coalesce(p_area, '')), ''), 'unknown'),
+    coalesce(nullif(btrim(coalesce(p_message, '')), ''), 'Unknown client error'),
+    coalesce(p_details, '{}'::jsonb)
+  );
+end;
+$function$
+"
+public,log_event,"p_user_id uuid, p_session_id uuid, p_event_type text, p_device text, p_user_agent text",void,"CREATE OR REPLACE FUNCTION public.log_event(p_user_id uuid, p_session_id uuid, p_event_type text, p_device text, p_user_agent text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+begin
+  insert into audit_logs (
+    user_id,
+    session_id,
+    event_type,
+    device,
+    user_agent
+  )
+  values (
+    p_user_id,
+    p_session_id,
+    p_event_type,
+    p_device,
+    p_user_agent
+  );
+end;
+$function$
+"
+public,login_full,p_email text,json,"CREATE OR REPLACE FUNCTION public.login_full(p_email text)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_profile profiles%rowtype;
+  v_attempts int;
+  v_max_attempts int := 5;
+  v_lock_minutes int := 5;
+begin
+
+  -- 🔍 znajdź usera
+  select *
+  into v_profile
+  from profiles
+  where lower(trim(email)) = lower(trim(p_email))
+  limit 1;
+
+  if v_profile.user_id is null then
+    return json_build_object(
+      'success', false,
+      'code', 'NOT_FOUND',
+      'message', 'Użytkownik nie istnieje'
+    );
+  end if;
+
+  -- 🔒 status
+  if v_profile.status <> 'active' then
+    return json_build_object(
+      'success', false,
+      'code', 'INACTIVE',
+      'message', 'Konto nieaktywne'
+    );
+  end if;
+
+  -- 🔒 lock
+  if v_profile.lock_until is not null and v_profile.lock_until > now() then
+    return json_build_object(
+      'success', false,
+      'code', 'LOCKED',
+      'message', 'Konto zablokowane'
+    );
+  end if;
+
+  return json_build_object(
+    'success', true
+  );
+
+end;
+$function$
+"
+public,login_full,"p_email text, p_success boolean",json,"CREATE OR REPLACE FUNCTION public.login_full(p_email text, p_success boolean)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_profile profiles%rowtype;
+  v_attempts int;
+  v_max_attempts int := 5;
+  v_lock_minutes int := 5;
+begin
+
+  -- 🔍 znajdź usera
+  select *
+  into v_profile
+  from profiles
+  where lower(trim(email)) = lower(trim(p_email))
+  limit 1;
+
+  if v_profile.user_id is null then
+    return json_build_object(
+      'success', false,
+      'code', 'NOT_FOUND',
+      'message', 'Użytkownik nie istnieje'
+    );
+  end if;
+
+  -- 🔒 status
+  if v_profile.status <> 'active' then
+    return json_build_object(
+      'success', false,
+      'code', 'INACTIVE',
+      'message', 'Konto nieaktywne'
+    );
+  end if;
+
+  -- 🔒 lock
+  if v_profile.lock_until is not null and v_profile.lock_until > now() then
+    return json_build_object(
+      'success', false,
+      'code', 'LOCKED',
+      'message', 'Konto zablokowane'
+    );
+  end if;
+
+  -- ❗ NIEUDANY LOGIN
+  if p_success = false then
+
+    update profiles
+    set login_attempts = coalesce(login_attempts, 0) + 1
+    where user_id = v_profile.user_id
+    returning login_attempts into v_attempts;
+
+    if v_attempts >= v_max_attempts then
+      update profiles
+      set lock_until = now() + interval '5 minutes'
+      where user_id = v_profile.user_id;
+
+      return json_build_object(
+        'success', false,
+        'code', 'LOCKED',
+        'message', 'Konto zablokowane',
+        'attempts', v_attempts,
+        'remaining', 0
+      );
+    else
+      return json_build_object(
+        'success', false,
+        'code', 'INVALID_PASSWORD',
+        'message', 'Nieprawidłowe dane',
+        'attempts', v_attempts,
+        'remaining', v_max_attempts - v_attempts
+      );
+    end if;
+
+  end if;
+
+  -- ✅ SUKCES → tylko informacja (bez resetu!)
+  return json_build_object(
+    'success', true,
+    'code', 'OK'
+  );
+
+end;
+$function$
+"
+public,login_precheck,p_email text,json,"CREATE OR REPLACE FUNCTION public.login_precheck(p_email text)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_profile profiles%rowtype;
+begin
+  select *
+  into v_profile
+  from profiles
+  where lower(trim(email)) = lower(trim(p_email))
+  limit 1;
+
+  if v_profile.user_id is null then
+    return json_build_object(
+      'success', false,
+      'message', 'Użytkownik nie istnieje'
+    );
+  end if;
+
+  if v_profile.status <> 'active' then
+    return json_build_object(
+      'success', false,
+      'message', 'Konto nieaktywne'
+    );
+  end if;
+
+  if v_profile.lock_until is not null and v_profile.lock_until > now() then
+    return json_build_object(
+      'success', false,
+      'message', 'Konto zablokowane'
+    );
+  end if;
+
+  return json_build_object(
+    'success', true
+  );
+end;
+$function$
+"
+public,pause_work_session,p_session_id uuid,sessions,"CREATE OR REPLACE FUNCTION public.pause_work_session(p_session_id uuid)
+ RETURNS sessions
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_session public.sessions;
+begin
+  update public.sessions
+  set
+    status = 'paused',
+    last_activity = now()
+  where id = p_session_id
+    and lower(coalesce(status, '')) = 'active'
+  returning * into v_session;
+
+  if v_session.id is null then
+    raise exception 'SESSION_NOT_ACTIVE';
+  end if;
+
+  update public.locations
+  set
+    status = 'pending',
+    locked_by = null,
+    locked_at = null,
+    session_id = null
+  where session_id = p_session_id
+    and lower(coalesce(status, '')) = 'in_progress';
+
+  return v_session;
+end;
+$function$
+"
+public,prevent_entries_delete,,trigger,"CREATE OR REPLACE FUNCTION public.prevent_entries_delete()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  raise exception 'Operacji nie mozna usunac z historii';
+end;
+$function$
+"
+public,release_empty_location_work,p_location_id uuid,void,"CREATE OR REPLACE FUNCTION public.release_empty_location_work(p_location_id uuid)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  update public.locations
+  set
+    status = 'pending',
+    locked_by = null,
+    locked_at = null,
+    session_id = null
+  where id = p_location_id;
+$function$
+"
+public,report_empty_location_issue,"p_location_id uuid, p_session_id uuid, p_user_id uuid, p_operator_email text, p_zone text, p_issue_type text, p_note text",uuid,"CREATE OR REPLACE FUNCTION public.report_empty_location_issue(p_location_id uuid, p_session_id uuid, p_user_id uuid, p_operator_email text, p_zone text, p_issue_type text, p_note text DEFAULT NULL::text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_issue_id uuid;
+begin
+  insert into public.empty_location_issues (
+    location_id,
+    session_id,
+    user_id,
+    operator_email,
+    zone,
+    issue_type,
+    note
+  ) values (
+    p_location_id,
+    p_session_id,
+    p_user_id,
+    p_operator_email,
+    p_zone,
+    p_issue_type,
+    p_note
+  )
+  returning id into v_issue_id;
+
+  update public.locations
+  set
+    status = 'done',
+    locked_by = null,
+    locked_at = null,
+    session_id = null
+  where id = p_location_id;
+
+  insert into public.empty_location_inventory_log (
+    location_id,
+    session_id,
+    user_id,
+    operator_email,
+    zone,
+    action,
+    issue_id
+  ) values (
+    p_location_id,
+    p_session_id,
+    p_user_id,
+    p_operator_email,
+    p_zone,
+    'reported_problem',
+    v_issue_id
+  );
+
+  return v_issue_id;
+end;
+$function$
+"
+public,report_empty_location_surplus,"p_location_id uuid, p_session_id uuid, p_user_id uuid, p_operator_email text, p_zone text, p_ean text, p_sku text, p_lot text, p_quantity numeric",uuid,"CREATE OR REPLACE FUNCTION public.report_empty_location_surplus(p_location_id uuid, p_session_id uuid, p_user_id uuid, p_operator_email text, p_zone text, p_ean text DEFAULT NULL::text, p_sku text DEFAULT NULL::text, p_lot text DEFAULT NULL::text, p_quantity numeric DEFAULT NULL::numeric)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_location public.locations;
+  v_session record;
+  v_entry_id uuid;
+begin
+  if p_sku is null or btrim(p_sku) = '' then
+    raise exception 'MISSING_SKU';
+  end if;
+
+  if p_quantity is null or p_quantity <= 0 then
+    raise exception 'INVALID_QUANTITY';
+  end if;
+
+  select *
+  into v_session
+  from public.sessions
+  where id = p_session_id;
+
+  if v_session is null then
+    raise exception 'SESSION_NOT_FOUND';
+  end if;
+
+  if v_session.user_id <> p_user_id then
+    raise exception 'SESSION_NOT_OWNED';
+  end if;
+
+  update public.locations
+  set
+    status = 'done',
+    locked_by = null,
+    locked_at = null,
+    session_id = null,
+    last_gap_inventory = now()
+  where id = p_location_id
+    and status = 'in_progress'
+  returning * into v_location;
+
+  if v_location.id is null then
+    raise exception 'LOCATION_NOT_IN_PROGRESS';
+  end if;
+
+  insert into public.entries (
+    session_id,
+    user_id,
+    operator,
+    site_id,
+    location,
+    ean,
+    sku,
+    lot,
+    type,
+    quantity,
+    confirmed,
+    timestamp,
+    created_at,
+    operation_id
+  )
+  values (
+    p_session_id,
+    p_user_id,
+    p_operator_email,
+    v_session.site_id,
+    v_location.code,
+    nullif(p_ean, ''),
+    btrim(p_sku),
+    nullif(p_lot, ''),
+    'surplus',
+    p_quantity,
+    true,
+    now(),
+    now(),
+    gen_random_uuid()
+  )
+  returning id into v_entry_id;
+
+  insert into public.empty_location_inventory_log (
+    location_id,
+    session_id,
+    user_id,
+    operator_email,
+    zone,
+    action,
+    related_entry_id
+  ) values (
+    p_location_id,
+    p_session_id,
+    p_user_id,
+    p_operator_email,
+    p_zone,
+    'reported_surplus',
+    v_entry_id
+  );
+
+  return v_entry_id;
+end;
+$function$
+"
+public,report_inventory_location_issue,"p_location_id uuid, p_location_code text, p_session_id uuid, p_user_id uuid, p_operator_email text, p_zone text, p_issue_type text, p_note text, p_source_process text, p_previous_status text",uuid,"CREATE OR REPLACE FUNCTION public.report_inventory_location_issue(p_location_id uuid, p_location_code text DEFAULT NULL::text, p_session_id uuid DEFAULT NULL::uuid, p_user_id uuid DEFAULT NULL::uuid, p_operator_email text DEFAULT NULL::text, p_zone text DEFAULT NULL::text, p_issue_type text DEFAULT NULL::text, p_note text DEFAULT NULL::text, p_source_process text DEFAULT 'unknown'::text, p_previous_status text DEFAULT NULL::text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_issue_id uuid;
+  v_previous_status text;
+begin
+  select coalesce(nullif(p_previous_status, ''), l.status, 'active')
+  into v_previous_status
+  from public.locations l
+  where l.id = p_location_id;
+
+  insert into public.empty_location_issues (
+    location_id,
+    location_code,
+    session_id,
+    user_id,
+    operator_email,
+    zone,
+    issue_type,
+    note,
+    status,
+    source_process,
+    previous_location_status,
+    created_at,
+    updated_at
+  )
+  values (
+    p_location_id,
+    p_location_code,
+    p_session_id,
+    p_user_id,
+    p_operator_email,
+    p_zone,
+    p_issue_type,
+    p_note,
+    'open',
+    coalesce(nullif(p_source_process, ''), 'unknown'),
+    coalesce(v_previous_status, 'active'),
+    now(),
+    now()
+  )
+  returning id into v_issue_id;
+
+  update public.locations
+  set
+    status = 'blocked',
+    locked_by = null,
+    locked_at = null,
+    session_id = null
+  where id = p_location_id;
+
+  insert into public.empty_location_inventory_log (
+    location_id,
+    session_id,
+    user_id,
+    operator_email,
+    zone,
+    action,
+    issue_id
+  )
+  values (
+    p_location_id,
+    p_session_id,
+    p_user_id,
+    p_operator_email,
+    p_zone,
+    'reported_problem',
+    v_issue_id
+  );
+
+  return v_issue_id;
+end;
+$function$
+"
+public,reset_login_attempts,p_email text,void,"CREATE OR REPLACE FUNCTION public.reset_login_attempts(p_email text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+begin
+  update profiles
+  set
+    login_attempts = 0,
+    lock_until = null
+  where email = p_email;
+end;
+$function$
+"
+public,resume_work_session,p_session_id uuid,sessions,"CREATE OR REPLACE FUNCTION public.resume_work_session(p_session_id uuid)
+ RETURNS sessions
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_session public.sessions;
+begin
+  update public.sessions
+  set
+    status = 'active',
+    last_activity = now()
+  where id = p_session_id
+    and lower(status) = 'paused'
+  returning * into v_session;
+
+  if v_session.id is null then
+    raise exception 'SESSION_NOT_PAUSED';
+  end if;
+
+  return v_session;
+end;
+$function$
+"
+public,save_manual_process_admin_config,"p_site_id text, p_validation_rules jsonb","TABLE(id uuid, site_id text, validation_rules jsonb)","CREATE OR REPLACE FUNCTION public.save_manual_process_admin_config(p_site_id text DEFAULT NULL::text, p_validation_rules jsonb DEFAULT '{}'::jsonb)
+ RETURNS TABLE(id uuid, site_id text, validation_rules jsonb)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_before jsonb;
+  v_row_id uuid;
+begin
+  perform 1
+  from public.profiles p_admin
+  where p_admin.user_id = auth.uid()
+    and lower(coalesce(p_admin.role, '')) = 'admin';
+
+  if not found then
+    raise exception 'Brak uprawnien administratora';
+  end if;
+
+  select pc.validation_rules, pc.id
+  into v_before, v_row_id
+  from public.process_config pc
+  where coalesce(pc.site_id, '') = coalesce(p_site_id, '')
+  order by pc.id desc
+  limit 1;
+
+  update public.process_config pc
+  set
+    validation_rules = coalesce(p_validation_rules, '{}'::jsonb),
+    updated_at = now()
+  where pc.id = v_row_id;
+
+  if not found then
+    insert into public.process_config (
+      site_id,
+      validation_rules,
+      updated_at
+    )
+    values (
+      p_site_id,
+      coalesce(p_validation_rules, '{}'::jsonb),
+      now()
+    )
+    returning public.process_config.id into v_row_id;
+  end if;
+
+  insert into public.config_change_logs (
+    user_id,
+    site_id,
+    scope,
+    action,
+    before_config,
+    after_config
+  )
+  values (
+    auth.uid(),
+    p_site_id,
+    'manual_process',
+    case when v_before is null then 'create' else 'update' end,
+    v_before,
+    coalesce(p_validation_rules, '{}'::jsonb)
+  );
+
+  return query
+  select
+    pc.id,
+    pc.site_id,
+    coalesce(pc.validation_rules, '{}'::jsonb) as validation_rules
+  from public.process_config pc
+  where pc.id = v_row_id
+  limit 1;
+end;
+$function$
+"
+public,start_empty_location_work,"p_location_id uuid, p_user_id uuid",locations,"CREATE OR REPLACE FUNCTION public.start_empty_location_work(p_location_id uuid, p_user_id uuid)
+ RETURNS locations
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_location public.locations;
+  v_session_id uuid;
+begin
+  select s.id
+  into v_session_id
+  from public.sessions s
+  where s.user_id = p_user_id
+    and lower(s.status) = 'active'
+  order by s.started_at desc
+  limit 1;
+
+  update public.locations
+  set
+    status = 'in_progress',
+    locked_by = p_user_id,
+    locked_at = now(),
+    session_id = v_session_id
+  where id = p_location_id
+    and status in ('active', 'pending')
+  returning * into v_location;
+
+  if v_location.id is null then
+    raise exception 'LOCATION_NOT_AVAILABLE';
+  end if;
+
+  return v_location;
+end;
+$function$
+"
+public,touch_session,p_session_id uuid,void,"CREATE OR REPLACE FUNCTION public.touch_session(p_session_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+begin
+
+  update sessions
+  set last_activity = now()
+  where id = p_session_id
+  and user_id = auth.uid();
+
+end;
+$function$
+"
+public,touch_work_session,p_session_id uuid,void,"CREATE OR REPLACE FUNCTION public.touch_work_session(p_session_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  update public.sessions
+  set
+    last_activity = now()
+  where id = p_session_id
+    and lower(status) = 'active';
+end;
+$function$
+"
+public,update_inventory_history_entry,"p_entry_id uuid, p_reason text, p_changes jsonb",uuid,"CREATE OR REPLACE FUNCTION public.update_inventory_history_entry(p_entry_id uuid, p_reason text, p_changes jsonb DEFAULT '{}'::jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_role text;
+  v_old public.entries%rowtype;
+  v_new public.entries%rowtype;
+begin
+  select lower(coalesce(p.role, ''))
+  into v_role
+  from public.profiles p
+  where p.user_id = auth.uid()
+  limit 1;
+
+  if v_role not in ('superuser', 'manager', 'office', 'admin') then
+    raise exception 'Brak uprawnien do edycji historii operacji';
+  end if;
+
+  if p_reason is null or btrim(p_reason) = '' then
+    raise exception 'Powod zmiany jest wymagany';
+  end if;
+
+  select *
+  into v_old
+  from public.entries e
+  where e.id = p_entry_id
+  limit 1;
+
+  if v_old.id is null then
+    raise exception 'Wpis nie istnieje';
+  end if;
+
+  update public.entries e
+  set
+    location = coalesce(p_changes->>'location', e.location),
+    sku = coalesce(p_changes->>'sku', e.sku),
+    ean = coalesce(p_changes->>'ean', e.ean),
+    lot = coalesce(p_changes->>'lot', e.lot),
+    quantity = case
+      when p_changes ? 'quantity' and nullif(p_changes->>'quantity', '') is not null
+        then (p_changes->>'quantity')::numeric
+      else e.quantity
+    end,
+    type = coalesce(p_changes->>'type', e.type)
+  where e.id = p_entry_id
+  returning * into v_new;
+
+  insert into public.correction_log (
+    entry_id,
+    user_id,
+    reason,
+    old_value,
+    new_value,
+    created_at
+  )
+  values (
+    p_entry_id,
+    auth.uid(),
+    p_reason,
+    jsonb_build_object(
+      'location', v_old.location,
+      'sku', v_old.sku,
+      'ean', v_old.ean,
+      'lot', v_old.lot,
+      'quantity', v_old.quantity,
+      'type', v_old.type
+    ),
+    jsonb_build_object(
+      'location', v_new.location,
+      'sku', v_new.sku,
+      'ean', v_new.ean,
+      'lot', v_new.lot,
+      'quantity', v_new.quantity,
+      'type', v_new.type
+    ),
+    now()
+  );
+
+  return p_entry_id;
+end;
+$function$
+"
+public,update_inventory_history_entry,"p_entry_id uuid, p_reason_code text, p_comment text, p_changes jsonb",uuid,"CREATE OR REPLACE FUNCTION public.update_inventory_history_entry(p_entry_id uuid, p_reason_code text, p_comment text DEFAULT NULL::text, p_changes jsonb DEFAULT '{}'::jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_role text;
+  v_old public.entries%rowtype;
+  v_new public.entries%rowtype;
+  v_location_exists boolean;
+  v_product record;
+  v_normalized_type text;
+  v_quantity numeric;
+  v_expiry_text text;
+  v_is_privileged boolean;
+begin
+  select lower(coalesce(p.role, ''))
+  into v_role
+  from public.profiles p
+  where p.user_id = auth.uid()
+  limit 1;
+
+  v_is_privileged := v_role in ('admin', 'primeuser', 'superuser');
+
+  if v_role is null then
+    raise exception 'Brak uprawnien do edycji historii operacji';
+  end if;
+
+  if p_reason_code is null or btrim(p_reason_code) = '' then
+    raise exception 'Powod korekty jest wymagany';
+  end if;
+
+  select *
+  into v_old
+  from public.entries e
+  where e.id = p_entry_id
+  limit 1;
+
+  if v_old.id is null then
+    raise exception 'Wpis nie istnieje';
+  end if;
+
+  if not v_is_privileged then
+    if lower(coalesce(v_old.approval_status, 'pending')) = 'approved' then
+      raise exception 'Operacja zatwierdzona nie moze byc edytowana przez operatora';
+    end if;
+
+    if v_old.user_id is distinct from auth.uid() then
+      raise exception 'Mozesz edytowac tylko wlasne niezatwierdzone operacje';
+    end if;
+  end if;
+
+  if p_changes ? 'location' and nullif(p_changes->>'location', '') is not null then
+    select exists (
+      select 1
+      from public.locations l
+      where l.code = p_changes->>'location'
+    )
+    into v_location_exists;
+
+    if not v_location_exists then
+      raise exception 'Niepoprawna lokalizacja';
+    end if;
+  end if;
+
+  if p_changes ? 'sku' and nullif(p_changes->>'sku', '') is not null then
+    select id, sku, ean
+    into v_product
+    from public.products p
+    where p.sku = p_changes->>'sku'
+    limit 1;
+
+    if v_product.id is null then
+      raise exception 'Niepoprawny SKU';
+    end if;
+  elsif v_old.sku is not null then
+    select id, sku, ean
+    into v_product
+    from public.products p
+    where p.sku = v_old.sku
+    limit 1;
+  end if;
+
+  v_normalized_type := lower(coalesce(nullif(p_changes->>'type', ''), v_old.type, ''));
+  if v_normalized_type in ('shortage', 'brak') then
+    v_normalized_type := 'brak';
+  elsif v_normalized_type in ('surplus', 'nadwyzka', 'nadwyżka') then
+    v_normalized_type := 'surplus';
+  elsif v_normalized_type = 'checked_empty' then
+    v_normalized_type := 'checked_empty';
+  elsif v_normalized_type = 'problem' then
+    v_normalized_type := 'problem';
+  end if;
+
+  if p_changes ? 'quantity' and nullif(p_changes->>'quantity', '') is not null then
+    v_quantity := (p_changes->>'quantity')::numeric;
+  else
+    v_quantity := v_old.quantity;
+  end if;
+
+  if v_normalized_type <> 'checked_empty' and (v_quantity is null or v_quantity <= 0) then
+    raise exception 'Ilosc musi byc wieksza od zera';
+  end if;
+
+  v_expiry_text := nullif(coalesce(p_changes->>'expiry', p_changes->>'expiry_date', ''), '');
+  if v_expiry_text is not null and v_expiry_text !~ '^\d{4}-\d{2}-\d{2}$' then
+    raise exception 'Niepoprawny format daty';
+  end if;
+
+  update public.entries e
+  set
+    location = coalesce(nullif(p_changes->>'location', ''), e.location),
+    sku = coalesce(nullif(p_changes->>'sku', ''), e.sku),
+    ean = coalesce(nullif(p_changes->>'ean', ''), e.ean, v_product.ean),
+    lot = coalesce(nullif(p_changes->>'lot', ''), e.lot),
+    expiry = coalesce(nullif(p_changes->>'expiry', '')::date, nullif(p_changes->>'expiry_date', '')::date, e.expiry),
+    expiry_date = coalesce(nullif(p_changes->>'expiry_date', '')::date, nullif(p_changes->>'expiry', '')::date, e.expiry_date),
+    quantity = case
+      when v_normalized_type = 'checked_empty' then coalesce(v_quantity, 0)
+      else v_quantity
+    end,
+    type = coalesce(v_normalized_type, e.type),
+    updated_at = now()
+  where e.id = p_entry_id
+  returning * into v_new;
+
+  insert into public.correction_log (
+    entry_id,
+    user_id,
+    reason,
+    comment,
+    old_value,
+    new_value,
+    created_at
+  )
+  values (
+    p_entry_id,
+    auth.uid(),
+    p_reason_code,
+    nullif(btrim(coalesce(p_comment, '')), ''),
+    jsonb_build_object(
+      'location', v_old.location,
+      'sku', v_old.sku,
+      'ean', v_old.ean,
+      'lot', v_old.lot,
+      'expiry', v_old.expiry,
+      'expiry_date', v_old.expiry_date,
+      'quantity', v_old.quantity,
+      'type', v_old.type,
+      'approval_status', v_old.approval_status
+    ),
+    jsonb_build_object(
+      'location', v_new.location,
+      'sku', v_new.sku,
+      'ean', v_new.ean,
+      'lot', v_new.lot,
+      'expiry', v_new.expiry,
+      'expiry_date', v_new.expiry_date,
+      'quantity', v_new.quantity,
+      'type', v_new.type,
+      'approval_status', v_new.approval_status
+    ),
+    now()
+  );
+
+  insert into public.audit_log (
+    user_id,
+    action,
+    payload,
+    created_at
+  )
+  values (
+    auth.uid(),
+    'UPDATE_ENTRY_CORRECTION',
+    jsonb_build_object(
+      'entry_id', p_entry_id,
+      'reason_code', p_reason_code,
+      'comment', nullif(btrim(coalesce(p_comment, '')), ''),
+      'before', jsonb_build_object(
+        'location', v_old.location,
+        'sku', v_old.sku,
+        'ean', v_old.ean,
+        'lot', v_old.lot,
+        'expiry', v_old.expiry,
+        'expiry_date', v_old.expiry_date,
+        'quantity', v_old.quantity,
+        'type', v_old.type
+      ),
+      'after', jsonb_build_object(
+        'location', v_new.location,
+        'sku', v_new.sku,
+        'ean', v_new.ean,
+        'lot', v_new.lot,
+        'expiry', v_new.expiry,
+        'expiry_date', v_new.expiry_date,
+        'quantity', v_new.quantity,
+        'type', v_new.type
+      )
+    ),
+    now()
+  );
+
+  return p_entry_id;
+end;
+$function$
+"
+public,validate_active_session,p_session_id uuid,boolean,"CREATE OR REPLACE FUNCTION public.validate_active_session(p_session_id uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+AS $function$
+declare
+  v_status text;
+  v_last_activity timestamp;
+begin
+  -- ❗ brak session_id
+  if p_session_id is null then
+    return false;
+  end if;
+
+  select status, last_activity
+  into v_status, v_last_activity
+  from sessions
+  where id = p_session_id;
+
+  -- ❗ brak rekordu
+  if v_status is null then
+    return false;
+  end if;
+
+  -- ❗ status
+  if v_status != 'active' then
+    return false;
+  end if;
+
+  -- ❗ timeout
+  if v_last_activity is null then
+    return false;
+  end if;
+
+  if v_last_activity < now() - interval '5 minutes' then
+    return false;
+  end if;
+
+  return true;
+end;
+$function$
+"
+public,validate_session_active,,trigger,"CREATE OR REPLACE FUNCTION public.validate_session_active()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.sessions
+    WHERE id = NEW.session_id
+    AND status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'Session is not active';
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+"

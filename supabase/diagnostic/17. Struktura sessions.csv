@@ -1,0 +1,12 @@
+column_name,data_type,is_nullable,column_default
+id,uuid,NO,gen_random_uuid()
+operator,text,NO,null
+role,text,NO,null
+site_id,text,NO,null
+started_at,timestamp with time zone,YES,now()
+ended_at,timestamp with time zone,YES,null
+status,text,YES,'ACTIVE'::text
+last_activity,timestamp with time zone,YES,null
+user_id,uuid,YES,null
+device,text,YES,null
+created_at,timestamp with time zone,YES,now()

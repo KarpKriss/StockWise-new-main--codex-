@@ -1,0 +1,7 @@
+column_name,data_type,is_nullable,column_default
+id,uuid,NO,gen_random_uuid()
+sku,text,YES,null
+ean,text,YES,null
+name,text,YES,null
+status,text,YES,'active'::text
+site_id,text,YES,null

@@ -1,0 +1,23 @@
+proname,args,returns
+check_session_active,,trigger
+cleanup_sessions,,void
+close_inactive_sessions,,integer
+end_work_session,p_session_id uuid,void
+get_admin_auth_logs,"p_user_id uuid, p_limit integer","TABLE(id uuid, created_at timestamp with time zone, user_id uuid, user_email text, user_name text, event_type text, entity text, status text, message text, payload jsonb, source text)"
+get_login_attempts,p_email text,json
+increment_login_attempts,p_email text,void
+insert_entry,payload jsonb,uuid
+is_session_active,p_session_id uuid,boolean
+log_auth_event,"p_email text, p_user_id uuid, p_event_type text, p_success boolean, p_message text",void
+login_full,p_email text,json
+login_full,"p_email text, p_success boolean",json
+login_precheck,p_email text,json
+pause_work_session,p_session_id uuid,sessions
+reset_login_attempts,p_email text,void
+resume_work_session,p_session_id uuid,sessions
+touch_session,p_session_id uuid,void
+touch_work_session,p_session_id uuid,void
+update_inventory_history_entry,"p_entry_id uuid, p_reason_code text, p_comment text, p_changes jsonb",uuid
+update_inventory_history_entry,"p_entry_id uuid, p_reason text, p_changes jsonb",uuid
+validate_active_session,p_session_id uuid,boolean
+validate_session_active,,trigger

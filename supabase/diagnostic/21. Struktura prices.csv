@@ -1,0 +1,5 @@
+column_name,data_type,is_nullable,column_default
+id,uuid,NO,gen_random_uuid()
+product_id,uuid,YES,null
+price,numeric,YES,null
+site_id,text,YES,null

@@ -1,0 +1,14 @@
+column_name,data_type,is_nullable,column_default
+id,uuid,NO,gen_random_uuid()
+name,text,YES,null
+role,text,YES,null
+site_id,text,YES,null
+status,text,YES,'active'::text
+created_at,timestamp with time zone,YES,now()
+updated_at,timestamp with time zone,YES,null
+failed_attempts,integer,YES,0
+email,text,YES,null
+login_attempts,integer,YES,0
+lock_until,timestamp with time zone,YES,null
+user_id,uuid,YES,null
+operator_number,text,YES,null

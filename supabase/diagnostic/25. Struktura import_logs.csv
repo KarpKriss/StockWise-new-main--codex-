@@ -1,0 +1,6 @@
+column_name,data_type,is_nullable,column_default
+id,uuid,NO,gen_random_uuid()
+user_id,uuid,YES,null
+type,text,YES,null
+created_at,timestamp with time zone,YES,now()
+site_id,text,YES,null

@@ -1,0 +1,15 @@
+table_name,column_name
+config_change_logs,site_id
+correction_log,site_id
+entries,site_id
+export_config,site_id
+import_logs,site_id
+locations,site_id
+prices,site_id
+process_config,site_id
+products,site_id
+profiles,site_id
+sessions,site_id
+stock,site_id
+user_site_access,site_id
+zones,site_id

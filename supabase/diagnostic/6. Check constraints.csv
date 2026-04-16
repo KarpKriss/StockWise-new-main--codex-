@@ -1,0 +1,65 @@
+table_name,constraint_name,check_clause
+audit_log,2200_28872_1_not_null,id IS NOT NULL
+audit_logs,2200_37045_1_not_null,id IS NOT NULL
+audit_logs,2200_37045_4_not_null,event_type IS NOT NULL
+auth_event_logs,2200_47235_1_not_null,id IS NOT NULL
+auth_event_logs,2200_47235_4_not_null,event_type IS NOT NULL
+auth_event_logs,2200_47235_5_not_null,success IS NOT NULL
+auth_event_logs,2200_47235_7_not_null,metadata IS NOT NULL
+auth_event_logs,2200_47235_8_not_null,created_at IS NOT NULL
+client_error_logs,2200_47246_1_not_null,id IS NOT NULL
+client_error_logs,2200_47246_3_not_null,area IS NOT NULL
+client_error_logs,2200_47246_4_not_null,message IS NOT NULL
+client_error_logs,2200_47246_5_not_null,details IS NOT NULL
+client_error_logs,2200_47246_6_not_null,created_at IS NOT NULL
+config_change_logs,2200_47256_1_not_null,id IS NOT NULL
+config_change_logs,2200_47256_4_not_null,scope IS NOT NULL
+config_change_logs,2200_47256_5_not_null,action IS NOT NULL
+config_change_logs,2200_47256_8_not_null,created_at IS NOT NULL
+correction_log,2200_28821_1_not_null,id IS NOT NULL
+empty_location_inventory_log,2200_47142_10_not_null,created_at IS NOT NULL
+empty_location_inventory_log,2200_47142_1_not_null,id IS NOT NULL
+empty_location_inventory_log,2200_47142_2_not_null,location_id IS NOT NULL
+empty_location_inventory_log,2200_47142_6_not_null,zone IS NOT NULL
+empty_location_inventory_log,2200_47142_7_not_null,action IS NOT NULL
+empty_location_inventory_log,empty_location_inventory_log_action_check,"(action = ANY (ARRAY['confirmed_empty'::text, 'reported_problem'::text, 'reported_surplus'::text]))"
+empty_location_issues,2200_47116_10_not_null,created_at IS NOT NULL
+empty_location_issues,2200_47116_1_not_null,id IS NOT NULL
+empty_location_issues,2200_47116_2_not_null,location_id IS NOT NULL
+empty_location_issues,2200_47116_6_not_null,zone IS NOT NULL
+empty_location_issues,2200_47116_7_not_null,issue_type IS NOT NULL
+empty_location_issues,2200_47116_9_not_null,status IS NOT NULL
+empty_location_issues,empty_location_issues_issue_type_check,"(issue_type = ANY (ARRAY['Towar uszkodzony'::text, 'Problem z iloscia towaru'::text, 'Brak identyfikacji towaru'::text]))"
+empty_location_issues,empty_location_issues_status_check,"(status = ANY (ARRAY['open'::text, 'resolved'::text, 'cancelled'::text]))"
+entries,2200_17472_1_not_null,id IS NOT NULL
+entries,2200_17472_3_not_null,operator IS NOT NULL
+export_config,2200_28909_1_not_null,id IS NOT NULL
+import_logs,2200_28887_1_not_null,id IS NOT NULL
+location_issues,2200_28840_1_not_null,id IS NOT NULL
+locations,2200_28764_1_not_null,id IS NOT NULL
+locations,locations_status_check,"(status = ANY (ARRAY['pending'::text, 'in_progress'::text, 'done'::text, 'inactive'::text, 'blocked'::text]))"
+prices,2200_28808_1_not_null,id IS NOT NULL
+process_config,2200_28901_1_not_null,id IS NOT NULL
+products,2200_28780_1_not_null,id IS NOT NULL
+profiles,2200_17504_1_not_null,id IS NOT NULL
+profiles,profiles_status_check,"(status = ANY (ARRAY['active'::text, 'inactive'::text]))"
+sessions,2200_17462_1_not_null,id IS NOT NULL
+sessions,2200_17462_2_not_null,operator IS NOT NULL
+sessions,2200_17462_3_not_null,role IS NOT NULL
+sessions,2200_17462_4_not_null,site_id IS NOT NULL
+sites,2200_49553_1_not_null,id IS NOT NULL
+sites,2200_49553_2_not_null,code IS NOT NULL
+sites,2200_49553_3_not_null,name IS NOT NULL
+sites,2200_49553_4_not_null,status IS NOT NULL
+sites,2200_49553_5_not_null,created_at IS NOT NULL
+sites,2200_49553_6_not_null,updated_at IS NOT NULL
+stock,2200_28790_1_not_null,id IS NOT NULL
+stock_import_logs,2200_42647_1_not_null,id IS NOT NULL
+user_site_access,2200_49565_1_not_null,id IS NOT NULL
+user_site_access,2200_49565_2_not_null,user_id IS NOT NULL
+user_site_access,2200_49565_3_not_null,site_id IS NOT NULL
+user_site_access,2200_49565_5_not_null,status IS NOT NULL
+user_site_access,2200_49565_6_not_null,is_default IS NOT NULL
+user_site_access,2200_49565_7_not_null,created_at IS NOT NULL
+user_site_access,2200_49565_8_not_null,updated_at IS NOT NULL
+zones,2200_28756_1_not_null,id IS NOT NULL

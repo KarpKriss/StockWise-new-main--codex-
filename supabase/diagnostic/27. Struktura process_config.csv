@@ -1,0 +1,6 @@
+column_name,data_type,is_nullable,column_default
+id,uuid,NO,gen_random_uuid()
+site_id,text,YES,null
+step_order,jsonb,YES,null
+validation_rules,jsonb,YES,null
+updated_at,timestamp with time zone,YES,null

@@ -1,0 +1,179 @@
+table_name,ordinal_position,column_name,data_type,is_nullable,column_default
+audit_log,1,id,uuid,NO,gen_random_uuid()
+audit_log,2,user_id,uuid,YES,null
+audit_log,3,action,text,YES,null
+audit_log,4,payload,jsonb,YES,null
+audit_log,5,created_at,timestamp with time zone,YES,now()
+audit_logs,1,id,uuid,NO,gen_random_uuid()
+audit_logs,2,user_id,uuid,YES,null
+audit_logs,3,session_id,uuid,YES,null
+audit_logs,4,event_type,text,NO,null
+audit_logs,5,device,text,YES,null
+audit_logs,6,user_agent,text,YES,null
+audit_logs,7,created_at,timestamp with time zone,YES,now()
+auth_event_logs,1,id,uuid,NO,gen_random_uuid()
+auth_event_logs,2,user_id,uuid,YES,null
+auth_event_logs,3,email,text,YES,null
+auth_event_logs,4,event_type,text,NO,null
+auth_event_logs,5,success,boolean,NO,false
+auth_event_logs,6,message,text,YES,null
+auth_event_logs,7,metadata,jsonb,NO,'{}'::jsonb
+auth_event_logs,8,created_at,timestamp with time zone,NO,now()
+client_error_logs,1,id,uuid,NO,gen_random_uuid()
+client_error_logs,2,user_id,uuid,YES,null
+client_error_logs,3,area,text,NO,null
+client_error_logs,4,message,text,NO,null
+client_error_logs,5,details,jsonb,NO,'{}'::jsonb
+client_error_logs,6,created_at,timestamp with time zone,NO,now()
+config_change_logs,1,id,uuid,NO,gen_random_uuid()
+config_change_logs,2,user_id,uuid,YES,null
+config_change_logs,3,site_id,text,YES,null
+config_change_logs,4,scope,text,NO,'manual_process'::text
+config_change_logs,5,action,text,NO,'update'::text
+config_change_logs,6,before_config,jsonb,YES,null
+config_change_logs,7,after_config,jsonb,YES,null
+config_change_logs,8,created_at,timestamp with time zone,NO,now()
+correction_log,1,id,uuid,NO,gen_random_uuid()
+correction_log,2,entry_id,uuid,YES,null
+correction_log,3,user_id,uuid,YES,null
+correction_log,4,reason,text,YES,null
+correction_log,5,old_value,jsonb,YES,null
+correction_log,6,new_value,jsonb,YES,null
+correction_log,7,created_at,timestamp with time zone,YES,now()
+correction_log,8,comment,text,YES,null
+correction_log,9,site_id,text,YES,null
+empty_location_inventory_log,1,id,uuid,NO,gen_random_uuid()
+empty_location_inventory_log,2,location_id,uuid,NO,null
+empty_location_inventory_log,3,session_id,uuid,YES,null
+empty_location_inventory_log,4,user_id,uuid,YES,null
+empty_location_inventory_log,5,operator_email,text,YES,null
+empty_location_inventory_log,6,zone,text,NO,null
+empty_location_inventory_log,7,action,text,NO,null
+empty_location_inventory_log,8,related_entry_id,uuid,YES,null
+empty_location_inventory_log,9,issue_id,uuid,YES,null
+empty_location_inventory_log,10,created_at,timestamp with time zone,NO,now()
+empty_location_issues,1,id,uuid,NO,gen_random_uuid()
+empty_location_issues,2,location_id,uuid,NO,null
+empty_location_issues,3,session_id,uuid,YES,null
+empty_location_issues,4,user_id,uuid,YES,null
+empty_location_issues,5,operator_email,text,YES,null
+empty_location_issues,6,zone,text,NO,null
+empty_location_issues,7,issue_type,text,NO,null
+empty_location_issues,8,note,text,YES,null
+empty_location_issues,9,status,text,NO,'open'::text
+empty_location_issues,10,created_at,timestamp with time zone,NO,now()
+empty_location_issues,11,resolved_at,timestamp with time zone,YES,null
+empty_location_issues,12,source_process,text,YES,null
+empty_location_issues,13,location_code,text,YES,null
+empty_location_issues,14,previous_location_status,text,YES,null
+empty_location_issues,15,resolved_by,uuid,YES,null
+empty_location_issues,16,updated_at,timestamp with time zone,YES,null
+entries,1,id,uuid,NO,gen_random_uuid()
+entries,2,session_id,uuid,YES,null
+entries,3,operator,text,NO,null
+entries,4,location,text,YES,null
+entries,5,ean,text,YES,null
+entries,6,sku,text,YES,null
+entries,7,lot,text,YES,null
+entries,8,expiry,date,YES,null
+entries,9,type,text,YES,null
+entries,10,quantity,numeric,YES,null
+entries,11,created_at,timestamp with time zone,YES,now()
+entries,12,operation_uuid,uuid,YES,null
+entries,13,user_id,uuid,YES,null
+entries,14,site_id,text,YES,null
+entries,15,expiry_date,date,YES,null
+entries,16,confirmed,boolean,YES,true
+entries,17,operation_id,uuid,YES,null
+entries,18,timestamp,timestamp with time zone,YES,now()
+entries,19,approval_status,text,YES,'pending'::text
+entries,20,approved_at,timestamp with time zone,YES,null
+entries,21,approved_by,uuid,YES,null
+entries,22,updated_at,timestamp with time zone,YES,null
+export_config,1,id,uuid,NO,gen_random_uuid()
+export_config,2,site_id,text,YES,null
+export_config,3,mapping,jsonb,YES,null
+import_logs,1,id,uuid,NO,gen_random_uuid()
+import_logs,2,user_id,uuid,YES,null
+import_logs,3,type,text,YES,null
+import_logs,4,created_at,timestamp with time zone,YES,now()
+import_logs,5,site_id,text,YES,null
+location_issues,1,id,uuid,NO,gen_random_uuid()
+location_issues,2,location_id,uuid,YES,null
+location_issues,3,user_id,uuid,YES,null
+location_issues,4,type,text,YES,null
+location_issues,5,comment,text,YES,null
+location_issues,6,created_at,timestamp with time zone,YES,now()
+locations,1,id,uuid,NO,gen_random_uuid()
+locations,2,code,text,YES,null
+locations,4,status,text,YES,'pending'::text
+locations,5,locked_by,uuid,YES,null
+locations,6,locked_at,timestamp with time zone,YES,null
+locations,7,zone,text,YES,null
+locations,8,site_id,text,YES,null
+locations,9,last_gap_inventory,timestamp with time zone,YES,null
+locations,10,session_id,uuid,YES,null
+prices,1,id,uuid,NO,gen_random_uuid()
+prices,2,product_id,uuid,YES,null
+prices,3,price,numeric,YES,null
+prices,4,site_id,text,YES,null
+process_config,1,id,uuid,NO,gen_random_uuid()
+process_config,2,site_id,text,YES,null
+process_config,3,step_order,jsonb,YES,null
+process_config,4,validation_rules,jsonb,YES,null
+process_config,5,updated_at,timestamp with time zone,YES,null
+products,1,id,uuid,NO,gen_random_uuid()
+products,2,sku,text,YES,null
+products,3,ean,text,YES,null
+products,4,name,text,YES,null
+products,5,status,text,YES,'active'::text
+products,6,site_id,text,YES,null
+profiles,1,id,uuid,NO,gen_random_uuid()
+profiles,2,name,text,YES,null
+profiles,3,role,text,YES,null
+profiles,4,site_id,text,YES,null
+profiles,5,status,text,YES,'active'::text
+profiles,6,created_at,timestamp with time zone,YES,now()
+profiles,7,updated_at,timestamp with time zone,YES,null
+profiles,8,failed_attempts,integer,YES,0
+profiles,9,email,text,YES,null
+profiles,10,login_attempts,integer,YES,0
+profiles,11,lock_until,timestamp with time zone,YES,null
+profiles,12,user_id,uuid,YES,null
+profiles,13,operator_number,text,YES,null
+sessions,1,id,uuid,NO,gen_random_uuid()
+sessions,2,operator,text,NO,null
+sessions,3,role,text,NO,null
+sessions,4,site_id,text,NO,null
+sessions,5,started_at,timestamp with time zone,YES,now()
+sessions,6,ended_at,timestamp with time zone,YES,null
+sessions,7,status,text,YES,'ACTIVE'::text
+sessions,8,last_activity,timestamp with time zone,YES,null
+sessions,9,user_id,uuid,YES,null
+sessions,10,device,text,YES,null
+sessions,11,created_at,timestamp with time zone,YES,now()
+sites,1,id,text,NO,null
+sites,2,code,text,NO,null
+sites,3,name,text,NO,null
+sites,4,status,text,NO,'active'::text
+sites,5,created_at,timestamp with time zone,NO,now()
+sites,6,updated_at,timestamp with time zone,NO,now()
+stock,1,id,uuid,NO,gen_random_uuid()
+stock,2,location_id,uuid,YES,null
+stock,3,product_id,uuid,YES,null
+stock,4,quantity,numeric,YES,null
+stock,5,site_id,text,YES,null
+stock_import_logs,1,id,uuid,NO,gen_random_uuid()
+stock_import_logs,2,created_at,timestamp without time zone,YES,now()
+stock_import_logs,3,records_count,integer,YES,null
+user_site_access,1,id,uuid,NO,gen_random_uuid()
+user_site_access,2,user_id,uuid,NO,null
+user_site_access,3,site_id,text,NO,null
+user_site_access,4,role,text,YES,null
+user_site_access,5,status,text,NO,'active'::text
+user_site_access,6,is_default,boolean,NO,false
+user_site_access,7,created_at,timestamp with time zone,NO,now()
+user_site_access,8,updated_at,timestamp with time zone,NO,now()
+zones,1,id,uuid,NO,gen_random_uuid()
+zones,2,site_id,text,YES,null
+zones,3,name,text,YES,null

@@ -1,0 +1,15 @@
+tablename,policyname,cmd,qual,with_check
+entries,Users can read own entries,SELECT,(auth.uid() = user_id),null
+entries,allow authenticated select entries,SELECT,true,null
+entries,block_all_direct_insert,INSERT,null,false
+entries,no_direct_insert,INSERT,null,false
+entries,select_own_entries,SELECT,(user_id = auth.uid()),null
+locations,Allow delete locations,DELETE,true,null
+locations,Allow insert locations,INSERT,null,true
+locations,Allow read locations,SELECT,true,null
+profiles,Users can read own profile,SELECT,(auth.uid() = user_id),null
+profiles,Users can update own profile,UPDATE,(auth.uid() = id),null
+sessions,Users can insert own sessions,INSERT,null,(auth.uid() = user_id)
+sessions,Users can see own sessions,SELECT,(auth.uid() = user_id),null
+sessions,allow authenticated select,SELECT,true,null
+sessions,allow_insert_sessions,INSERT,null,true

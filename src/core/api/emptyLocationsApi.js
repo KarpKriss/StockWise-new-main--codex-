@@ -16,32 +16,22 @@ function unwrapRpcRows(data) {
 
 function isLocationReadyStatus(status) {
   const normalized = String(status || "").toLowerCase();
-  return normalized === "active" || normalized === "pending";
+  return !normalized || normalized === "active" || normalized === "pending";
 }
 
 export async function fetchEmptyLocationZones({ siteId } = {}) {
   const safeSiteId = normalizeSiteId(siteId);
-  let zonesResult = await supabase.rpc("get_empty_location_zones", {
-    p_site_id: safeSiteId,
-  });
+  const { data, error } = await applySiteFilter(
+    supabase.from("locations").select("zone, status"),
+    safeSiteId
+  );
 
-  if (zonesResult.error) {
-    console.warn("FETCH EMPTY ZONES RPC ERROR:", zonesResult.error);
-
-    let fallbackQuery = applySiteFilter(
-      supabase.from("locations").select("zone, status"),
-      safeSiteId
-    );
-
-    zonesResult = await fallbackQuery;
+  if (error) {
+    console.error("FETCH EMPTY ZONES ERROR:", error);
+    throw new Error(error.message || "Blad pobierania stref");
   }
 
-  if (zonesResult.error) {
-    console.error("FETCH EMPTY ZONES ERROR:", zonesResult.error);
-    throw new Error(zonesResult.error.message || "Blad pobierania stref");
-  }
-
-  const rows = unwrapRpcRows(zonesResult.data);
+  const rows = unwrapRpcRows(data);
   const zones = rows
     .filter((row) => isLocationReadyStatus(row.status) || !("status" in row))
     .map((row) => String(row.zone || "").trim())
@@ -108,7 +98,6 @@ export async function fetchEmptyLocationsForZone({ zone, siteId } = {}) {
         .from("locations")
         .select("id, code, zone, status, locked_by, locked_at, site_id")
         .eq("zone", zone)
-        .in("status", ["active", "pending"])
         .order("code", { ascending: true })
         .range(offset, offset + pageSize - 1),
       safeSiteId
@@ -135,7 +124,9 @@ export async function fetchEmptyLocationsForZone({ zone, siteId } = {}) {
   }
 
   const occupiedIds = new Set((stockRows || []).map((row) => row.location_id).filter(Boolean));
-  const emptyLocations = allLocations.filter((row) => !occupiedIds.has(row.id));
+  const emptyLocations = allLocations.filter(
+    (row) => isLocationReadyStatus(row.status) && !occupiedIds.has(row.id)
+  );
 
   return {
     locations: emptyLocations,

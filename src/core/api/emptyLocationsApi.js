@@ -21,17 +21,31 @@ function isLocationReadyStatus(status) {
 
 export async function fetchEmptyLocationZones({ siteId } = {}) {
   const safeSiteId = normalizeSiteId(siteId);
-  const { data, error } = await applySiteFilter(
-    supabase.from("locations").select("zone, status"),
-    safeSiteId
-  );
+  const pageSize = 1000;
+  const rows = [];
+  let from = 0;
 
-  if (error) {
-    console.error("FETCH EMPTY ZONES ERROR:", error);
-    throw new Error(error.message || "Blad pobierania stref");
+  while (true) {
+    const to = from + pageSize - 1;
+    const { data, error } = await applySiteFilter(
+      supabase.from("locations").select("zone, status"),
+      safeSiteId
+    ).range(from, to);
+
+    if (error) {
+      console.error("FETCH EMPTY ZONES ERROR:", error);
+      throw new Error(error.message || "Blad pobierania stref");
+    }
+
+    const chunk = unwrapRpcRows(data);
+    rows.push(...chunk);
+
+    if (chunk.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
   }
-
-  const rows = unwrapRpcRows(data);
   const zones = rows
     .filter((row) => isLocationReadyStatus(row.status) || !("status" in row))
     .map((row) => String(row.zone || "").trim())

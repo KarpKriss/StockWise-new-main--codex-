@@ -1,4 +1,4 @@
-import {
+﻿import {
   ActivitySquare,
   AlertTriangle,
   CheckCircle2,
@@ -15,48 +15,49 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import PageShell from "../../components/layout/PageShell";
 import { fetchSystemStatus } from "../../core/api/systemStatusApi";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 
-function getSeverityMeta(severity) {
+function getSeverityMeta(severity, copy) {
   switch (String(severity || "").toLowerCase()) {
     case "critical":
     case "danger":
     case "error":
       return {
         tone: "critical",
-        label: "Krytyczne",
+        label: copy.severityCritical,
         icon: <OctagonAlert size={18} />,
       };
     case "warning":
     case "warn":
       return {
         tone: "warning",
-        label: "Uwaga",
+        label: copy.severityWarning,
         icon: <AlertTriangle size={18} />,
       };
     default:
       return {
         tone: "healthy",
-        label: "OK",
+        label: copy.severityOk,
         icon: <CheckCircle2 size={18} />,
       };
   }
 }
 
-function formatDateTime(value) {
+function formatDateTime(value, locale) {
   if (!value) return "-";
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
 
-  return new Intl.DateTimeFormat("pl-PL", {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "short",
     timeStyle: "medium",
   }).format(date);
 }
 
-function formatMetric(value) {
+function formatMetric(value, locale) {
   const number = Number(value || 0);
-  return new Intl.NumberFormat("pl-PL").format(number);
+  return new Intl.NumberFormat(locale).format(number);
 }
 
 function HealthMetricCard({ icon, label, value, hint, tone = "neutral" }) {
@@ -76,15 +77,15 @@ function getProcessTone(status) {
   return String(status || "").toLowerCase() === "connected" ? "healthy" : "warning";
 }
 
-function AlertRow({ item }) {
-  const meta = getSeverityMeta(item.severity);
+function AlertRow({ item, copy }) {
+  const meta = getSeverityMeta(item.severity, copy);
 
   return (
     <div className={`system-alert system-alert--${meta.tone}`}>
       <div className="system-alert__badge">{meta.icon}</div>
       <div className="system-alert__body">
         <div className="system-alert__header">
-          <strong>{item.title || item.code || "Sygnał systemowy"}</strong>
+          <strong>{item.title || item.code || copy.systemSignal}</strong>
           <span className={`system-alert__pill system-alert__pill--${meta.tone}`}>
             {meta.label}
           </span>
@@ -92,10 +93,10 @@ function AlertRow({ item }) {
         <div className="system-alert__meta">
           {item.category ? <span>{item.category}</span> : null}
           {item.value !== undefined && item.value !== null ? (
-            <span>Wartosc: {String(item.value)}</span>
+            <span>{copy.valueLabel}: {String(item.value)}</span>
           ) : null}
         </div>
-        <p>{item.description || "Brak dodatkowego opisu."}</p>
+        <p>{item.description || copy.noAdditionalDescription}</p>
         {item.recommendation ? (
           <div className="system-alert__recommendation">{item.recommendation}</div>
         ) : null}
@@ -105,10 +106,236 @@ function AlertRow({ item }) {
 }
 
 export default function SystemStatusModern() {
+  const { language, locale } = useAppPreferences();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshTick, setRefreshTick] = useState(0);
+
+  const copy = {
+    pl: {
+      severityCritical: "Krytyczne",
+      severityWarning: "Uwaga",
+      severityOk: "OK",
+      systemSignal: "Sygnal systemowy",
+      valueLabel: "Wartosc",
+      noAdditionalDescription: "Brak dodatkowego opisu.",
+      loadError: "Nie udalo sie pobrac statusu systemu",
+      title: "Statusy",
+      subtitle: "Panel zdrowia systemu dla administratora. Widok wychwytuje sygnaly ostrzegawcze i miejsca, ktore moga zagrozic ciaglosci procesu.",
+      backLabel: "Powrot do ustawien",
+      refresh: "Odswiez",
+      loading: "Pobieram panel zdrowia systemu...",
+      healthMonitor: "Health monitor",
+      systemStatus: "Status systemu",
+      dataSource: "Zrodlo danych",
+      rpc: "backend RPC",
+      fallback: "fallback",
+      lastRefresh: "Ostatnie odswiezenie",
+      database: "Baza",
+      unknown: "unknown",
+      dbContact: "Kontakt z baza",
+      dbHint: "Jesli panel zwrocil dane z RPC, polaczenie z baza dziala.",
+      apiStatus: "Status API",
+      apiHint: "Stan backendu administratorskiego i kluczowych wywolan RPC.",
+      appVersion: "Wersja aplikacji",
+      appVersionHint: "Wersja frontendowego buildu zgodna z package.json.",
+      userCount: "Liczba uzytkownikow",
+      userCountHint: "Liczba kont widocznych w panelu administracyjnym.",
+      activeUsers: "Aktywni uzytkownicy",
+      activeUsersHint: "Unikalni operatorzy z aktywna sesja.",
+      activeSessions: "Aktywne sesje",
+      activeSessionsHint: "Sesje aktywne w systemie.",
+      pausedSessions: "Sesje wstrzymane",
+      pausedSessionsHint: "Sesje odlozone, ale nadal otwarte.",
+      locationsInProgress: "Lokalizacje w toku",
+      locationsInProgressHint: "Lokalizacje aktualnie przypisane do operatorow.",
+      openProblems: "Otwarte problemy",
+      openProblemsHint: "Zgloszenia problemow czekajace na reakcje.",
+      entriesLastHour: "Wpisy z ostatniej godziny",
+      entriesLastHourHint: "Przy aktywnych sesjach zero wpisow moze oznaczac problem operacyjny.",
+      lockedAccounts: "Konta zablokowane",
+      lockedAccountsHint: "Konta z aktywna blokada lub lock_until w przyszlosci.",
+      usersWithoutRole: "Profile bez roli",
+      usersWithoutRoleHint: "Brak roli moze powodowac nieprzewidywalne dostepy.",
+      staleSessions: "Martwe sesje",
+      staleSessionsHint: "Aktywne sesje bez swiezej aktywnosci.",
+      staleLocations: "Porzucone lokalizacje",
+      staleLocationsHint: "Lokalizacje in_progress bez zywej sesji lub z przeterminowanym lockiem.",
+      processStatusTitle: "Status procesow systemowych",
+      processStatusDesc: "Techniczne zdrowie backendu administratorskiego, RPC i logowania sygnalow pomocniczych.",
+      noProcessData: "Brak szczegolowych danych o procesach systemowych.",
+      attentionAlertsTitle: "Alerty wymagajace uwagi",
+      attentionAlertsDesc: "Pozycje ostrzegawcze sa oznaczone na zolto, a zagrozenia krytyczne na czerwono.",
+      criticalCount: "Krytyczne",
+      warningCount: "Ostrzezenia",
+      noOpenAlerts: "Brak otwartych alertow. System nie sygnalizuje na ten moment istotnych odchylen.",
+      allSignalsTitle: "Wszystkie sygnaly systemowe",
+      allSignalsDesc: "Pelna lista metryk kontrolnych i ich aktualnej interpretacji.",
+      noSignals: "Backend nie zwrocil listy szczegolowych sygnalow. Widoczne sa tylko metryki zbiorcze.",
+      importStatusTitle: "Status importow danych",
+      importStatusDesc: "Ostatnie importy produktow, stocku, cen i mapy magazynu widoczne dla administratora.",
+      time: "Czas",
+      importType: "Typ importu",
+      userId: "User ID",
+      noImports: "Brak ostatnich importow danych.",
+      errorLogTitle: "Log bledow systemu",
+      errorLogDesc: "Ostatnie bledy aplikacyjne i fetch failures widoczne bez przechodzenia do osobnej zakladki logow.",
+      area: "Obszar",
+      message: "Komunikat",
+      user: "Uzytkownik",
+      noErrorLogs: "Brak zarejestrowanych bledow aplikacyjnych.",
+      noStatusData: "Brak danych statusowych do wyswietlenia.",
+    },
+    en: {
+      severityCritical: "Critical",
+      severityWarning: "Warning",
+      severityOk: "OK",
+      systemSignal: "System signal",
+      valueLabel: "Value",
+      noAdditionalDescription: "No additional description.",
+      loadError: "Failed to load system status",
+      title: "Statuses",
+      subtitle: "System health panel for administrators. This view highlights warning signals and places that may threaten process continuity.",
+      backLabel: "Back to settings",
+      refresh: "Refresh",
+      loading: "Loading system health panel...",
+      healthMonitor: "Health monitor",
+      systemStatus: "System status",
+      dataSource: "Data source",
+      rpc: "backend RPC",
+      fallback: "fallback",
+      lastRefresh: "Last refresh",
+      database: "Database",
+      unknown: "unknown",
+      dbContact: "Database contact",
+      dbHint: "If the panel returned RPC data, the database connection works.",
+      apiStatus: "API status",
+      apiHint: "State of the admin backend and key RPC calls.",
+      appVersion: "App version",
+      appVersionHint: "Frontend build version aligned with package.json.",
+      userCount: "User count",
+      userCountHint: "Number of accounts visible in the admin panel.",
+      activeUsers: "Active users",
+      activeUsersHint: "Unique operators with an active session.",
+      activeSessions: "Active sessions",
+      activeSessionsHint: "Sessions currently active in the system.",
+      pausedSessions: "Paused sessions",
+      pausedSessionsHint: "Sessions set aside but still open.",
+      locationsInProgress: "Locations in progress",
+      locationsInProgressHint: "Locations currently assigned to operators.",
+      openProblems: "Open problems",
+      openProblemsHint: "Problem reports waiting for action.",
+      entriesLastHour: "Entries in the last hour",
+      entriesLastHourHint: "With active sessions, zero entries may indicate an operational issue.",
+      lockedAccounts: "Locked accounts",
+      lockedAccountsHint: "Accounts with active lock or lock_until in the future.",
+      usersWithoutRole: "Profiles without role",
+      usersWithoutRoleHint: "Missing role may cause unpredictable access.",
+      staleSessions: "Stale sessions",
+      staleSessionsHint: "Active sessions without recent activity.",
+      staleLocations: "Abandoned locations",
+      staleLocationsHint: "In-progress locations without a live session or with an expired lock.",
+      processStatusTitle: "System process status",
+      processStatusDesc: "Technical health of the admin backend, RPC, and auxiliary signal logging.",
+      noProcessData: "No detailed system process data available.",
+      attentionAlertsTitle: "Alerts that need attention",
+      attentionAlertsDesc: "Warning items are highlighted in yellow, while critical threats are shown in red.",
+      criticalCount: "Critical",
+      warningCount: "Warnings",
+      noOpenAlerts: "No open alerts. The system is not signaling major deviations at the moment.",
+      allSignalsTitle: "All system signals",
+      allSignalsDesc: "Complete list of control metrics and their current interpretation.",
+      noSignals: "Backend did not return detailed signal list. Only aggregate metrics are visible.",
+      importStatusTitle: "Data import status",
+      importStatusDesc: "Latest product, stock, price, and warehouse map imports visible to the administrator.",
+      time: "Time",
+      importType: "Import type",
+      userId: "User ID",
+      noImports: "No recent data imports.",
+      errorLogTitle: "System error log",
+      errorLogDesc: "Latest application errors and fetch failures without switching to a separate logs tab.",
+      area: "Area",
+      message: "Message",
+      user: "User",
+      noErrorLogs: "No application errors recorded.",
+      noStatusData: "No status data to display.",
+    },
+    de: {
+      severityCritical: "Kritisch",
+      severityWarning: "Warnung",
+      severityOk: "OK",
+      systemSignal: "Systemsignal",
+      valueLabel: "Wert",
+      noAdditionalDescription: "Keine zusaetzliche Beschreibung.",
+      loadError: "Systemstatus konnte nicht geladen werden",
+      title: "Status",
+      subtitle: "Systemgesundheits-Panel fuer Administratoren. Diese Ansicht hebt Warnsignale und Bereiche hervor, die die Prozesskontinuitaet gefaehrden koennten.",
+      backLabel: "Zurueck zu Einstellungen",
+      refresh: "Aktualisieren",
+      loading: "Systemgesundheits-Panel wird geladen...",
+      healthMonitor: "Health monitor",
+      systemStatus: "Systemstatus",
+      dataSource: "Datenquelle",
+      rpc: "Backend-RPC",
+      fallback: "Fallback",
+      lastRefresh: "Letzte Aktualisierung",
+      database: "Datenbank",
+      unknown: "unknown",
+      dbContact: "Datenbankkontakt",
+      dbHint: "Wenn das Panel RPC-Daten liefert, funktioniert die Datenbankverbindung.",
+      apiStatus: "API-Status",
+      apiHint: "Status des Admin-Backends und wichtiger RPC-Aufrufe.",
+      appVersion: "App-Version",
+      appVersionHint: "Frontend-Build-Version gemaess package.json.",
+      userCount: "Benutzeranzahl",
+      userCountHint: "Anzahl der im Admin-Panel sichtbaren Konten.",
+      activeUsers: "Aktive Benutzer",
+      activeUsersHint: "Eindeutige Operatoren mit aktiver Sitzung.",
+      activeSessions: "Aktive Sitzungen",
+      activeSessionsHint: "Derzeit aktive Sitzungen im System.",
+      pausedSessions: "Pausierte Sitzungen",
+      pausedSessionsHint: "Zurueckgestellte, aber noch offene Sitzungen.",
+      locationsInProgress: "Lagerplaetze in Bearbeitung",
+      locationsInProgressHint: "Lagerplaetze, die aktuell Operatoren zugewiesen sind.",
+      openProblems: "Offene Probleme",
+      openProblemsHint: "Problem-Meldungen, die auf Reaktion warten.",
+      entriesLastHour: "Eintraege der letzten Stunde",
+      entriesLastHourHint: "Bei aktiven Sitzungen koennen null Eintraege auf ein operatives Problem hindeuten.",
+      lockedAccounts: "Gesperrte Konten",
+      lockedAccountsHint: "Konten mit aktiver Sperre oder lock_until in der Zukunft.",
+      usersWithoutRole: "Profile ohne Rolle",
+      usersWithoutRoleHint: "Fehlende Rollen koennen unvorhersehbare Zugriffe verursachen.",
+      staleSessions: "Verwaiste Sitzungen",
+      staleSessionsHint: "Aktive Sitzungen ohne aktuelle Aktivitaet.",
+      staleLocations: "Verlassene Lagerplaetze",
+      staleLocationsHint: "In-Bearbeitung-Lagerplaetze ohne aktive Sitzung oder mit abgelaufenem Lock.",
+      processStatusTitle: "Status der Systemprozesse",
+      processStatusDesc: "Technische Gesundheit des Admin-Backends, RPC und der Hilfssignal-Protokollierung.",
+      noProcessData: "Keine detaillierten Daten zu Systemprozessen vorhanden.",
+      attentionAlertsTitle: "Warnungen mit Handlungsbedarf",
+      attentionAlertsDesc: "Warnungen sind gelb markiert, kritische Risiken rot.",
+      criticalCount: "Kritisch",
+      warningCount: "Warnungen",
+      noOpenAlerts: "Keine offenen Warnungen. Das System meldet derzeit keine wesentlichen Abweichungen.",
+      allSignalsTitle: "Alle Systemsignale",
+      allSignalsDesc: "Vollstaendige Liste der Kontrollmetriken und ihrer aktuellen Interpretation.",
+      noSignals: "Das Backend hat keine detaillierte Signalliste geliefert. Sichtbar sind nur aggregierte Kennzahlen.",
+      importStatusTitle: "Status der Datenimporte",
+      importStatusDesc: "Letzte Importe von Produkten, Bestand, Preisen und Lagerplan fuer Administratoren.",
+      time: "Zeit",
+      importType: "Importtyp",
+      userId: "User-ID",
+      noImports: "Keine aktuellen Datenimporte.",
+      errorLogTitle: "Systemfehlerprotokoll",
+      errorLogDesc: "Neueste Anwendungsfehler und Fetch-Fehler ohne Wechsel in einen separaten Log-Tab.",
+      area: "Bereich",
+      message: "Meldung",
+      user: "Benutzer",
+      noErrorLogs: "Keine Anwendungsfehler protokolliert.",
+      noStatusData: "Keine Statusdaten zur Anzeige vorhanden.",
+    },
+  }[language];
 
   useEffect(() => {
     let cancelled = false;
@@ -123,7 +350,7 @@ export default function SystemStatusModern() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err.message || "Nie udalo sie pobrac statusu systemu");
+          setError(err.message || copy.loadError);
         }
       } finally {
         if (!cancelled) {
@@ -136,7 +363,7 @@ export default function SystemStatusModern() {
     return () => {
       cancelled = true;
     };
-  }, [refreshTick]);
+  }, [refreshTick, copy.loadError]);
 
   const summary = status?.summary || null;
   const alerts = Array.isArray(status?.alerts) ? status.alerts : [];
@@ -161,15 +388,15 @@ export default function SystemStatusModern() {
     return { critical, warning, healthy };
   }, [alerts]);
 
-  const overallMeta = getSeverityMeta(summary?.overall_status);
+  const overallMeta = getSeverityMeta(summary?.overall_status, copy);
 
   return (
     <PageShell
-      title="Statusy"
-      subtitle="Panel zdrowia systemu dla administratora. Widok wychwytuje sygnaly ostrzegawcze i miejsca, ktore moga zagrozic ciaglosci procesu."
+      title={copy.title}
+      subtitle={copy.subtitle}
       icon={<ActivitySquare size={26} />}
       backTo="/admin"
-      backLabel="Powrot do ustawien"
+      backLabel={copy.backLabel}
       actions={
         <button
           type="button"
@@ -177,27 +404,27 @@ export default function SystemStatusModern() {
           onClick={() => setRefreshTick((value) => value + 1)}
         >
           <RefreshCw size={16} />
-          Odswiez
+          {copy.refresh}
         </button>
       }
     >
-      {loading ? <div className="app-card">Pobieram panel zdrowia systemu...</div> : null}
+      {loading ? <div className="app-card">{copy.loading}</div> : null}
       {error ? <div className="input-error-text">{error}</div> : null}
 
       {!loading && !error && summary ? (
         <>
           <div className={`system-status-hero system-status-hero--${overallMeta.tone}`}>
             <div>
-              <div className="system-status-hero__eyebrow">Health monitor</div>
+              <div className="system-status-hero__eyebrow">{copy.healthMonitor}</div>
               <div className="system-status-hero__title-row">
                 <div className={`system-status-hero__icon system-status-hero__icon--${overallMeta.tone}`}>
                   {overallMeta.icon}
                 </div>
                 <div>
-                  <h2>{summary.overall_label || "Status systemu"}</h2>
+                  <h2>{summary.overall_label || copy.systemStatus}</h2>
                   <p>
-                    Zrodlo danych: <strong>{status?.source === "rpc" ? "backend RPC" : "fallback"}</strong>
-                    {" • "}Ostatnie odswiezenie: <strong>{formatDateTime(summary.generated_at)}</strong>
+                    {copy.dataSource}: <strong>{status?.source === "rpc" ? copy.rpc : copy.fallback}</strong>
+                    {" • "}{copy.lastRefresh}: <strong>{formatDateTime(summary.generated_at, locale)}</strong>
                   </p>
                 </div>
               </div>
@@ -208,7 +435,7 @@ export default function SystemStatusModern() {
                 {overallMeta.label}
               </span>
               <span className="system-status-hero__chip">
-                Baza: {String(summary.database_status || "unknown")}
+                {copy.database}: {String(summary.database_status || copy.unknown)}
               </span>
             </div>
           </div>
@@ -216,64 +443,64 @@ export default function SystemStatusModern() {
           <div className="system-status-grid">
             <HealthMetricCard
               icon={<Database size={20} />}
-              label="Kontakt z baza"
-              value={String(summary.database_status || "unknown")}
-              hint="Jesli panel zwrocil dane z RPC, polaczenie z baza dziala."
+              label={copy.dbContact}
+              value={String(summary.database_status || copy.unknown)}
+              hint={copy.dbHint}
               tone={String(summary.database_status || "").toLowerCase() === "connected" ? "healthy" : "warning"}
             />
             <HealthMetricCard
               icon={<ShieldCheck size={20} />}
-              label="Status API"
-              value={String(summary.api_status || "unknown")}
-              hint="Stan backendu administratorskiego i kluczowych wywolan RPC."
+              label={copy.apiStatus}
+              value={String(summary.api_status || copy.unknown)}
+              hint={copy.apiHint}
               tone={String(summary.api_status || "").toLowerCase() === "connected" ? "healthy" : "warning"}
             />
             <HealthMetricCard
               icon={<ActivitySquare size={20} />}
-              label="Wersja aplikacji"
+              label={copy.appVersion}
               value={String(summary.app_version || "-")}
-              hint="Wersja frontendowego buildu zgodna z package.json."
+              hint={copy.appVersionHint}
               tone="neutral"
             />
             <HealthMetricCard
               icon={<Users size={20} />}
-              label="Liczba uzytkownikow"
-              value={formatMetric(summary.total_users)}
-              hint="Liczba kont widocznych w panelu administracyjnym."
+              label={copy.userCount}
+              value={formatMetric(summary.total_users, locale)}
+              hint={copy.userCountHint}
               tone="neutral"
             />
             <HealthMetricCard
               icon={<Users size={20} />}
-              label="Aktywni uzytkownicy"
-              value={formatMetric(summary.active_users)}
-              hint="Unikalni operatorzy z aktywna sesja."
+              label={copy.activeUsers}
+              value={formatMetric(summary.active_users, locale)}
+              hint={copy.activeUsersHint}
             />
             <HealthMetricCard
               icon={<ActivitySquare size={20} />}
-              label="Aktywne sesje"
-              value={formatMetric(summary.active_sessions)}
-              hint="Sesje aktywne w systemie."
+              label={copy.activeSessions}
+              value={formatMetric(summary.active_sessions, locale)}
+              hint={copy.activeSessionsHint}
               tone={Number(summary.stale_sessions || 0) > 0 ? "warning" : "neutral"}
             />
             <HealthMetricCard
               icon={<PauseCircle size={20} />}
-              label="Sesje wstrzymane"
-              value={formatMetric(summary.paused_sessions)}
-              hint="Sesje odlozone, ale nadal otwarte."
+              label={copy.pausedSessions}
+              value={formatMetric(summary.paused_sessions, locale)}
+              hint={copy.pausedSessionsHint}
               tone={Number(summary.paused_sessions || 0) >= 5 ? "warning" : "neutral"}
             />
             <HealthMetricCard
               icon={<Waypoints size={20} />}
-              label="Lokalizacje w toku"
-              value={formatMetric(summary.in_progress_locations)}
-              hint="Lokalizacje aktualnie przypisane do operatorow."
+              label={copy.locationsInProgress}
+              value={formatMetric(summary.in_progress_locations, locale)}
+              hint={copy.locationsInProgressHint}
               tone={Number(summary.stale_locations || 0) > 0 ? "warning" : "neutral"}
             />
             <HealthMetricCard
               icon={<ShieldAlert size={20} />}
-              label="Otwarte problemy"
-              value={formatMetric(summary.unresolved_issues)}
-              hint="Zgloszenia problemow czekajace na reakcje."
+              label={copy.openProblems}
+              value={formatMetric(summary.unresolved_issues, locale)}
+              hint={copy.openProblemsHint}
               tone={
                 Number(summary.unresolved_issues || 0) >= 5
                   ? "critical"
@@ -284,9 +511,9 @@ export default function SystemStatusModern() {
             />
             <HealthMetricCard
               icon={<ActivitySquare size={20} />}
-              label="Wpisy z ostatniej godziny"
-              value={formatMetric(summary.recent_entries_1h)}
-              hint="Przy aktywnych sesjach zero wpisow moze oznaczac problem operacyjny."
+              label={copy.entriesLastHour}
+              value={formatMetric(summary.recent_entries_1h, locale)}
+              hint={copy.entriesLastHourHint}
               tone={
                 Number(summary.active_sessions || 0) > 0 && Number(summary.recent_entries_1h || 0) === 0
                   ? "warning"
@@ -295,30 +522,30 @@ export default function SystemStatusModern() {
             />
             <HealthMetricCard
               icon={<Users size={20} />}
-              label="Konta zablokowane"
-              value={formatMetric(summary.locked_accounts)}
-              hint="Konta z aktywna blokada lub lock_until w przyszlosci."
+              label={copy.lockedAccounts}
+              value={formatMetric(summary.locked_accounts, locale)}
+              hint={copy.lockedAccountsHint}
               tone={Number(summary.locked_accounts || 0) > 0 ? "warning" : "healthy"}
             />
             <HealthMetricCard
               icon={<ShieldAlert size={20} />}
-              label="Profile bez roli"
-              value={formatMetric(summary.users_without_role)}
-              hint="Brak roli moze powodowac nieprzewidywalne dostepy."
+              label={copy.usersWithoutRole}
+              value={formatMetric(summary.users_without_role, locale)}
+              hint={copy.usersWithoutRoleHint}
               tone={Number(summary.users_without_role || 0) > 0 ? "critical" : "healthy"}
             />
             <HealthMetricCard
               icon={<OctagonAlert size={20} />}
-              label="Martwe sesje"
-              value={formatMetric(summary.stale_sessions)}
-              hint="Aktywne sesje bez swiezej aktywnosci."
+              label={copy.staleSessions}
+              value={formatMetric(summary.stale_sessions, locale)}
+              hint={copy.staleSessionsHint}
               tone={Number(summary.stale_sessions || 0) >= 3 ? "critical" : Number(summary.stale_sessions || 0) > 0 ? "warning" : "healthy"}
             />
             <HealthMetricCard
               icon={<OctagonAlert size={20} />}
-              label="Porzucone lokalizacje"
-              value={formatMetric(summary.stale_locations)}
-              hint="Lokalizacje in_progress bez zywej sesji lub z przeterminowanym lockiem."
+              label={copy.staleLocations}
+              value={formatMetric(summary.stale_locations, locale)}
+              hint={copy.staleLocationsHint}
               tone={Number(summary.stale_locations || 0) > 0 ? "critical" : "healthy"}
             />
           </div>
@@ -326,8 +553,8 @@ export default function SystemStatusModern() {
           <div className="app-card">
             <div className="system-status-section-header">
               <div>
-                <h3>Status procesow systemowych</h3>
-                <p>Techniczne zdrowie backendu administratorskiego, RPC i logowania sygnalow pomocniczych.</p>
+                <h3>{copy.processStatusTitle}</h3>
+                <p>{copy.processStatusDesc}</p>
               </div>
             </div>
 
@@ -344,7 +571,7 @@ export default function SystemStatusModern() {
                       )
                     }
                     label={item.label}
-                    value={String(item.status || "unknown")}
+                    value={String(item.status || copy.unknown)}
                     hint={item.description}
                     tone={getProcessTone(item.status)}
                   />
@@ -352,7 +579,7 @@ export default function SystemStatusModern() {
               </div>
             ) : (
               <div className="app-empty-state">
-                Brak szczegolowych danych o procesach systemowych.
+                {copy.noProcessData}
               </div>
             )}
           </div>
@@ -360,15 +587,15 @@ export default function SystemStatusModern() {
           <div className="app-card">
             <div className="system-status-section-header">
               <div>
-                <h3>Alerty wymagajace uwagi</h3>
-                <p>Pozycje ostrzegawcze sa oznaczone na zolto, a zagrozenia krytyczne na czerwono.</p>
+                <h3>{copy.attentionAlertsTitle}</h3>
+                <p>{copy.attentionAlertsDesc}</p>
               </div>
               <div className="system-status-section-summary">
                 <span className="system-alert__pill system-alert__pill--critical">
-                  Krytyczne: {groupedAlerts.critical.length}
+                  {copy.criticalCount}: {groupedAlerts.critical.length}
                 </span>
                 <span className="system-alert__pill system-alert__pill--warning">
-                  Ostrzezenia: {groupedAlerts.warning.length}
+                  {copy.warningCount}: {groupedAlerts.warning.length}
                 </span>
               </div>
             </div>
@@ -376,15 +603,15 @@ export default function SystemStatusModern() {
             {groupedAlerts.critical.length || groupedAlerts.warning.length ? (
               <div className="system-alert-list">
                 {groupedAlerts.critical.map((item) => (
-                  <AlertRow key={item.code || item.title} item={item} />
+                  <AlertRow key={item.code || item.title} item={item} copy={copy} />
                 ))}
                 {groupedAlerts.warning.map((item) => (
-                  <AlertRow key={item.code || item.title} item={item} />
+                  <AlertRow key={item.code || item.title} item={item} copy={copy} />
                 ))}
               </div>
             ) : (
               <div className="app-empty-state">
-                Brak otwartych alertow. System nie sygnalizuje na ten moment istotnych odchylen.
+                {copy.noOpenAlerts}
               </div>
             )}
           </div>
@@ -392,20 +619,20 @@ export default function SystemStatusModern() {
           <div className="app-card">
             <div className="system-status-section-header">
               <div>
-                <h3>Wszystkie sygnaly systemowe</h3>
-                <p>Pelna lista metryk kontrolnych i ich aktualnej interpretacji.</p>
+                <h3>{copy.allSignalsTitle}</h3>
+                <p>{copy.allSignalsDesc}</p>
               </div>
             </div>
 
             {alerts.length ? (
               <div className="system-alert-list system-alert-list--compact">
                 {alerts.map((item) => (
-                  <AlertRow key={`${item.code || item.title}-${item.severity}`} item={item} />
+                  <AlertRow key={`${item.code || item.title}-${item.severity}`} item={item} copy={copy} />
                 ))}
               </div>
             ) : (
               <div className="app-empty-state">
-                Backend nie zwrocil listy szczegolowych sygnalow. Widoczne sa tylko metryki zbiorcze.
+                {copy.noSignals}
               </div>
             )}
           </div>
@@ -413,8 +640,8 @@ export default function SystemStatusModern() {
           <div className="app-card">
             <div className="system-status-section-header">
               <div>
-                <h3>Status importow danych</h3>
-                <p>Ostatnie importy produktow, stocku, cen i mapy magazynu widoczne dla administratora.</p>
+                <h3>{copy.importStatusTitle}</h3>
+                <p>{copy.importStatusDesc}</p>
               </div>
             </div>
 
@@ -423,15 +650,15 @@ export default function SystemStatusModern() {
                 <table className="app-table">
                   <thead>
                     <tr>
-                      <th>Czas</th>
-                      <th>Typ importu</th>
-                      <th>User ID</th>
+                      <th>{copy.time}</th>
+                      <th>{copy.importType}</th>
+                      <th>{copy.userId}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {importLogs.map((row) => (
                       <tr key={row.id}>
-                        <td>{formatDateTime(row.created_at)}</td>
+                        <td>{formatDateTime(row.created_at, locale)}</td>
                         <td>
                           <span className="history-status-chip">
                             <Download size={14} style={{ marginRight: 6 }} />
@@ -445,15 +672,15 @@ export default function SystemStatusModern() {
                 </table>
               </div>
             ) : (
-              <div className="app-empty-state">Brak ostatnich importow danych.</div>
+              <div className="app-empty-state">{copy.noImports}</div>
             )}
           </div>
 
           <div className="app-card">
             <div className="system-status-section-header">
               <div>
-                <h3>Log bledow systemu</h3>
-                <p>Ostatnie bledy aplikacyjne i fetch failures widoczne bez przechodzenia do osobnej zakladki logow.</p>
+                <h3>{copy.errorLogTitle}</h3>
+                <p>{copy.errorLogDesc}</p>
               </div>
             </div>
 
@@ -462,16 +689,16 @@ export default function SystemStatusModern() {
                 <table className="app-table">
                   <thead>
                     <tr>
-                      <th>Czas</th>
-                      <th>Obszar</th>
-                      <th>Komunikat</th>
-                      <th>Uzytkownik</th>
+                      <th>{copy.time}</th>
+                      <th>{copy.area}</th>
+                      <th>{copy.message}</th>
+                      <th>{copy.user}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {errorLogs.map((row) => (
                       <tr key={row.id}>
-                        <td>{formatDateTime(row.timestamp)}</td>
+                        <td>{formatDateTime(row.timestamp, locale)}</td>
                         <td>{row.entity || "-"}</td>
                         <td>{row.message || "-"}</td>
                         <td>{row.userName || row.userEmail || "-"}</td>
@@ -481,7 +708,7 @@ export default function SystemStatusModern() {
                 </table>
               </div>
             ) : (
-              <div className="app-empty-state">Brak zarejestrowanych bledow aplikacyjnych.</div>
+              <div className="app-empty-state">{copy.noErrorLogs}</div>
             )}
           </div>
         </>
@@ -489,7 +716,7 @@ export default function SystemStatusModern() {
 
       {!loading && !error && !summary ? (
         <div className="app-card">
-          <div className="app-empty-state">Brak danych statusowych do wyswietlenia.</div>
+          <div className="app-empty-state">{copy.noStatusData}</div>
         </div>
       ) : null}
     </PageShell>

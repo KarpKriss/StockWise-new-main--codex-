@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageShell from "../../components/layout/PageShell";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 import {
   fetchAuthLogs,
   fetchConfigChangeLogs,
@@ -15,40 +16,13 @@ import {
   fetchUserActionLogs,
 } from "../../core/api/logsApi";
 
-const LOG_TABS = [
-  {
-    key: "user-actions",
-    title: "Dzialania uzytkownika",
-    description: "Krok po kroku: co robil konkretny operator i jakie akcje dotknely backendu.",
-    icon: UserRoundSearch,
-  },
-  {
-    key: "config",
-    title: "Zmiany configu",
-    description: "Historia zmian procesu i konfiguracji admina.",
-    icon: ShieldAlert,
-  },
-  {
-    key: "auth",
-    title: "Logi logowania",
-    description: "Udane i nieudane logowania, blokady oraz zdarzenia dostepowe.",
-    icon: History,
-  },
-  {
-    key: "errors",
-    title: "Bledy i fetch failures",
-    description: "Bledy klienta, nieudane requesty i zdarzenia techniczne.",
-    icon: FileClock,
-  },
-];
-
-function formatDateTime(value) {
+function formatDateTime(value, locale) {
   if (!value) return "-";
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
 
-  return new Intl.DateTimeFormat("pl-PL", {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "short",
     timeStyle: "medium",
   }).format(date);
@@ -69,6 +43,93 @@ function getStatusTone(value) {
 }
 
 export default function LogsPanel() {
+  const { language, locale } = useAppPreferences();
+  const copy = {
+    pl: {
+      tabs: {
+        "user-actions": { title: "Dzialania uzytkownika", description: "Krok po kroku: co robil konkretny operator i jakie akcje dotknely backendu." },
+        config: { title: "Zmiany configu", description: "Historia zmian procesu i konfiguracji admina." },
+        auth: { title: "Logi logowania", description: "Udane i nieudane logowania, blokady oraz zdarzenia dostepowe." },
+        errors: { title: "Bledy i fetch failures", description: "Bledy klienta, nieudane requesty i zdarzenia techniczne." },
+      },
+      loadError: "Nie udalo sie pobrac logow",
+      title: "Logi",
+      subtitle: "Podzielone logi administracyjne: dzialania operatorow, zmiany konfiguracji, logowania i bledy aplikacyjne.",
+      backLabel: "Powrot do ustawien",
+      userFilter: "Filtr uzytkownika",
+      allUsers: "Wszyscy uzytkownicy",
+      globalLogsHint: "Ta zakladka pokazuje logi globalne dla calej aplikacji.",
+      loading: "Pobieram logi...",
+      time: "Czas",
+      user: "Uzytkownik",
+      event: "Zdarzenie",
+      area: "Obszar",
+      status: "Status",
+      details: "Szczegoly",
+      show: "Pokaz",
+      noLogs: "Brak logow dla wybranej kategorii i filtrow.",
+      selectedEvent: "Wybrane zdarzenie",
+      close: "Zamknij",
+    },
+    en: {
+      tabs: {
+        "user-actions": { title: "User actions", description: "Step by step: what a specific operator did and which actions affected the backend." },
+        config: { title: "Config changes", description: "History of process and admin configuration changes." },
+        auth: { title: "Auth logs", description: "Successful and failed logins, locks and access events." },
+        errors: { title: "Errors and fetch failures", description: "Client errors, failed requests and technical events." },
+      },
+      loadError: "Could not load logs",
+      title: "Logs",
+      subtitle: "Split admin logs: operator actions, configuration changes, sign-ins and application errors.",
+      backLabel: "Back to settings",
+      userFilter: "User filter",
+      allUsers: "All users",
+      globalLogsHint: "This tab shows global logs for the whole application.",
+      loading: "Loading logs...",
+      time: "Time",
+      user: "User",
+      event: "Event",
+      area: "Area",
+      status: "Status",
+      details: "Details",
+      show: "Show",
+      noLogs: "No logs for the selected category and filters.",
+      selectedEvent: "Selected event",
+      close: "Close",
+    },
+    de: {
+      tabs: {
+        "user-actions": { title: "Benutzeraktionen", description: "Schritt fur Schritt: was ein bestimmter Operator gemacht hat und welche Aktionen das Backend betroffen haben." },
+        config: { title: "Konfigurationsaenderungen", description: "Historie von Prozess- und Admin-Konfigurationsaenderungen." },
+        auth: { title: "Anmeldeprotokolle", description: "Erfolgreiche und fehlgeschlagene Anmeldungen, Sperren und Zugriffsereignisse." },
+        errors: { title: "Fehler und Fetch-Failures", description: "Client-Fehler, fehlgeschlagene Requests und technische Ereignisse." },
+      },
+      loadError: "Logs konnten nicht geladen werden",
+      title: "Logs",
+      subtitle: "Getrennte Admin-Logs: Operatoraktionen, Konfigurationsaenderungen, Anmeldungen und Applikationsfehler.",
+      backLabel: "Zuruck zu den Einstellungen",
+      userFilter: "Benutzerfilter",
+      allUsers: "Alle Benutzer",
+      globalLogsHint: "Dieser Reiter zeigt globale Logs fur die gesamte Anwendung.",
+      loading: "Logs werden geladen...",
+      time: "Zeit",
+      user: "Benutzer",
+      event: "Ereignis",
+      area: "Bereich",
+      status: "Status",
+      details: "Details",
+      show: "Anzeigen",
+      noLogs: "Keine Logs fur die gewahlte Kategorie und Filter.",
+      selectedEvent: "Ausgewaehltes Ereignis",
+      close: "Schliessen",
+    },
+  }[language];
+  const LOG_TABS = [
+    { key: "user-actions", icon: UserRoundSearch, ...copy.tabs["user-actions"] },
+    { key: "config", icon: ShieldAlert, ...copy.tabs.config },
+    { key: "auth", icon: History, ...copy.tabs.auth },
+    { key: "errors", icon: FileClock, ...copy.tabs.errors },
+  ];
   const [activeTab, setActiveTab] = useState("user-actions");
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
@@ -119,7 +180,7 @@ export default function LogsPanel() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError.message || "Nie udalo sie pobrac logow");
+          setError(loadError.message || copy.loadError);
           setRows([]);
         }
       } finally {
@@ -144,11 +205,11 @@ export default function LogsPanel() {
 
   return (
     <PageShell
-      title="Log's"
-      subtitle="Podzielone logi administracyjne: dzialania operatorow, zmiany konfiguracji, logowania i bledy aplikacyjne."
+      title={copy.title}
+      subtitle={copy.subtitle}
       icon={<FileClock size={26} />}
       backTo="/admin"
-      backLabel="Powrot do ustawien"
+      backLabel={copy.backLabel}
       actions={
         <div className="system-status-section-summary">
           {LOG_TABS.map((item) => (
@@ -176,13 +237,13 @@ export default function LogsPanel() {
         <div className="process-config-layout-grid">
           {needsUserFilter ? (
             <label>
-              <span className="helper-note">Filtr uzytkownika</span>
+              <span className="helper-note">{copy.userFilter}</span>
               <select
                 className="app-input"
                 value={selectedUser}
                 onChange={(event) => setSelectedUser(event.target.value)}
               >
-                <option value="">Wszyscy uzytkownicy</option>
+                <option value="">{copy.allUsers}</option>
                 {users.map((user) => (
                   <option key={user.userId || user.email} value={user.userId || ""}>
                     {user.name} {user.email ? `(${user.email})` : ""}
@@ -192,7 +253,7 @@ export default function LogsPanel() {
             </label>
           ) : (
             <div className="helper-note">
-              Ta zakladka pokazuje logi globalne dla calej aplikacji.
+              {copy.globalLogsHint}
             </div>
           )}
         </div>
@@ -202,18 +263,18 @@ export default function LogsPanel() {
 
       <div className="app-card">
         {loading ? (
-          <div className="app-empty-state">Pobieram logi...</div>
+          <div className="app-empty-state">{copy.loading}</div>
         ) : rows.length ? (
           <div className="dashboard-table-scroll">
             <table className="app-table">
               <thead>
                 <tr>
-                  <th>Czas</th>
-                  <th>Uzytkownik</th>
-                  <th>Zdarzenie</th>
-                  <th>Obszar</th>
-                  <th>Status</th>
-                  <th>Szczegoly</th>
+                  <th>{copy.time}</th>
+                  <th>{copy.user}</th>
+                  <th>{copy.event}</th>
+                  <th>{copy.area}</th>
+                  <th>{copy.status}</th>
+                  <th>{copy.details}</th>
                 </tr>
               </thead>
               <tbody>
@@ -221,7 +282,7 @@ export default function LogsPanel() {
                   const tone = getStatusTone(row.status);
                   return (
                     <tr key={row.id}>
-                      <td>{formatDateTime(row.timestamp)}</td>
+                      <td>{formatDateTime(row.timestamp, locale)}</td>
                       <td>{row.userName || row.userEmail || "-"}</td>
                       <td>{row.eventType || "-"}</td>
                       <td>{row.entity || "-"}</td>
@@ -236,7 +297,7 @@ export default function LogsPanel() {
                           className="app-button app-button--secondary app-button--md"
                           onClick={() => setSelectedLog(row)}
                         >
-                          Pokaz
+                          {copy.show}
                         </button>
                       </td>
                     </tr>
@@ -246,7 +307,7 @@ export default function LogsPanel() {
             </table>
           </div>
         ) : (
-          <div className="app-empty-state">Brak logow dla wybranej kategorii i filtrow.</div>
+          <div className="app-empty-state">{copy.noLogs}</div>
         )}
       </div>
 
@@ -255,32 +316,32 @@ export default function LogsPanel() {
           <div className="system-status-section-header">
             <div>
               <h3>Szczegoly wpisu</h3>
-              <p>{selectedLog.eventType || selectedLog.message || "Wybrane zdarzenie"}</p>
+              <p>{selectedLog.eventType || selectedLog.message || copy.selectedEvent}</p>
             </div>
             <button
               type="button"
               className="app-button app-button--secondary app-button--md"
               onClick={() => setSelectedLog(null)}
             >
-              Zamknij
+              {copy.close}
             </button>
           </div>
 
           <div className="confirm-card" style={{ marginBottom: 12 }}>
             <div className="confirm-row">
-              <span>Uzytkownik</span>
+              <span>{copy.user}</span>
               <span>{selectedLog.userName || selectedLog.userEmail || "-"}</span>
             </div>
             <div className="confirm-row">
-              <span>Czas</span>
-              <span>{formatDateTime(selectedLog.timestamp)}</span>
+              <span>{copy.time}</span>
+              <span>{formatDateTime(selectedLog.timestamp, locale)}</span>
             </div>
             <div className="confirm-row">
-              <span>Zdarzenie</span>
+              <span>{copy.event}</span>
               <span>{selectedLog.eventType || "-"}</span>
             </div>
             <div className="confirm-row">
-              <span>Obszar</span>
+              <span>{copy.area}</span>
               <span>{selectedLog.entity || "-"}</span>
             </div>
           </div>

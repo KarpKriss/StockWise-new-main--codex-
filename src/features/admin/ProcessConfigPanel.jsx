@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import PageShell from "../../components/layout/PageShell";
 import { useAuth } from "../../core/auth/AppAuth";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 import {
   DEFAULT_MANUAL_PROCESS_CONFIG,
   MANUAL_STEP_DEFINITIONS,
@@ -31,6 +32,174 @@ function ToggleField({ checked, onChange, disabled = false, label }) {
 
 export default function ProcessConfigPanel() {
   const { user } = useAuth();
+  const { language, locale } = useAppPreferences();
+  const copy = {
+    pl: {
+      loadError: "Nie udalo sie pobrac konfiguracji procesu",
+      locationRequired: "Krok lokalizacji musi pozostac wlaczony i obowiazkowy.",
+      typeRequired: "Typ operacji musi pozostac wlaczony i obowiazkowy.",
+      quantityRequired: "Ilosc musi pozostac wlaczona i obowiazkowa.",
+      skuOrEanRequired: "Musisz pozostawic aktywne co najmniej jedno z pol: SKU albo EAN.",
+      operationTypeRequired: "Co najmniej jeden typ operacji musi pozostac aktywny.",
+      saved: "Konfiguracja procesu recznego zostala zapisana.",
+      saveError: "Nie udalo sie zapisac konfiguracji procesu",
+      title: "Konfiguracja procesu",
+      subtitle: "Sterowanie reczna inwentaryzacja: kolejnosc krokow, widocznosc, wymagania i reguly walidacji. Proces pustych lokalizacji pozostaje niezalezny.",
+      backLabel: "Powrot do ustawien",
+      saving: "Zapisywanie...",
+      saveConfig: "Zapisz konfiguracje",
+      loading: "Pobieram konfiguracje recznej inwentaryzacji...",
+      stepsTitle: "Kroki procesu recznego",
+      stepsDesc: "Zmieniaj kolejnosc, widocznosc i wymagalnosc poszczegolnych etapow.",
+      source: "Zrodlo",
+      order: "Kolejnosc",
+      visible: "Widoczny",
+      mandatory: "Obowiazkowy",
+      activeStepsOrder: "Kolejnosc aktywnych krokow",
+      noActiveSteps: "Brak aktywnych krokow",
+      operationTypesTitle: "Dozwolone typy operacji",
+      operationTypesDesc: "Ta konfiguracja dotyczy tylko recznej inwentaryzacji.",
+      available: "Dostepny",
+      validationTitle: "Walidacje i limity",
+      regexHelpAria: "Instrukcja pisania formatow regex",
+      regexStrong: "Jak pisac regex",
+      regexLine1: "^ oznacza poczatek tekstu, a $ jego koniec.",
+      regexLine2: "\\d to cyfra, {4} to dokladnie 4 znaki, a myslnik - wpisujesz doslownie.",
+      regexLine3: "Przyklad LOT:",
+      regexLine4: "Przyklad bardziej ogolny:",
+      lotRegex: "Regex LOT",
+      lotMessage: "Komunikat LOT",
+      eanRegex: "Regex EAN",
+      eanMessage: "Komunikat EAN",
+      skuRegex: "Regex SKU",
+      skuMessage: "Komunikat SKU",
+      quantityWarn: "Prog ostrzezenia ilosci",
+      quantityHard: "Twardy limit ilosci",
+      quantityHardMessage: "Komunikat limitu ilosci",
+      locationTimeout: "Limit czasu lokalizacji (ms)",
+      saveTimeout: "Timeout zapisu API (ms)",
+      saveRetry: "Retry zapisu",
+      fetchRetry: "Retry pobran",
+      historyTitle: "Historia zmian konfiguracji",
+      historyDesc: "Ostatnie zapisy konfiguracji procesu recznego wraz z informacja, kto wprowadzil zmiane.",
+      time: "Czas",
+      user: "Uzytkownik",
+      action: "Akcja",
+      scope: "Zakres",
+      noHistory: "Brak zapisanej historii zmian konfiguracji.",
+      overlay: "Zapisuje konfiguracje procesu i aktualizuje ustawienia operatorow...",
+    },
+    en: {
+      loadError: "Could not load process configuration",
+      locationRequired: "The location step must remain enabled and mandatory.",
+      typeRequired: "The operation type step must remain enabled and mandatory.",
+      quantityRequired: "Quantity must remain enabled and mandatory.",
+      skuOrEanRequired: "You must keep at least one of these fields active: SKU or EAN.",
+      operationTypeRequired: "At least one operation type must remain active.",
+      saved: "Manual process configuration has been saved.",
+      saveError: "Could not save process configuration",
+      title: "Process configuration",
+      subtitle: "Control manual inventory: step order, visibility, requirements and validation rules. The empty-location flow stays independent.",
+      backLabel: "Back to settings",
+      saving: "Saving...",
+      saveConfig: "Save configuration",
+      loading: "Loading manual inventory configuration...",
+      stepsTitle: "Manual process steps",
+      stepsDesc: "Change the order, visibility and mandatory status of each stage.",
+      source: "Source",
+      order: "Order",
+      visible: "Visible",
+      mandatory: "Mandatory",
+      activeStepsOrder: "Enabled step order",
+      noActiveSteps: "No active steps",
+      operationTypesTitle: "Allowed operation types",
+      operationTypesDesc: "This configuration only applies to manual inventory.",
+      available: "Available",
+      validationTitle: "Validations and limits",
+      regexHelpAria: "Regex format writing guide",
+      regexStrong: "How to write regex",
+      regexLine1: "^ means start of text and $ means end of text.",
+      regexLine2: "\\d is a digit, {4} means exactly 4 characters, and - is written literally.",
+      regexLine3: "LOT example:",
+      regexLine4: "More general example:",
+      lotRegex: "LOT regex",
+      lotMessage: "LOT message",
+      eanRegex: "EAN regex",
+      eanMessage: "EAN message",
+      skuRegex: "SKU regex",
+      skuMessage: "SKU message",
+      quantityWarn: "Quantity warning threshold",
+      quantityHard: "Hard quantity limit",
+      quantityHardMessage: "Quantity limit message",
+      locationTimeout: "Location timeout (ms)",
+      saveTimeout: "API save timeout (ms)",
+      saveRetry: "Save retries",
+      fetchRetry: "Fetch retries",
+      historyTitle: "Configuration change history",
+      historyDesc: "Latest saves of manual process configuration together with who introduced the change.",
+      time: "Time",
+      user: "User",
+      action: "Action",
+      scope: "Scope",
+      noHistory: "No saved configuration change history.",
+      overlay: "Saving process configuration and updating operator settings...",
+    },
+    de: {
+      loadError: "Prozesskonfiguration konnte nicht geladen werden",
+      locationRequired: "Der Lokationsschritt muss aktiviert und verpflichtend bleiben.",
+      typeRequired: "Der Operationstyp muss aktiviert und verpflichtend bleiben.",
+      quantityRequired: "Die Menge muss aktiviert und verpflichtend bleiben.",
+      skuOrEanRequired: "Mindestens eines dieser Felder muss aktiv bleiben: SKU oder EAN.",
+      operationTypeRequired: "Mindestens ein Operationstyp muss aktiv bleiben.",
+      saved: "Die Konfiguration des manuellen Prozesses wurde gespeichert.",
+      saveError: "Prozesskonfiguration konnte nicht gespeichert werden",
+      title: "Prozesskonfiguration",
+      subtitle: "Steuerung der manuellen Inventur: Reihenfolge der Schritte, Sichtbarkeit, Pflichtfelder und Validierungsregeln. Der Leerplatzprozess bleibt unabhaengig.",
+      backLabel: "Zuruck zu den Einstellungen",
+      saving: "Speichern...",
+      saveConfig: "Konfiguration speichern",
+      loading: "Konfiguration der manuellen Inventur wird geladen...",
+      stepsTitle: "Schritte des manuellen Prozesses",
+      stepsDesc: "Reihenfolge, Sichtbarkeit und Pflichtstatus der einzelnen Schritte aendern.",
+      source: "Quelle",
+      order: "Reihenfolge",
+      visible: "Sichtbar",
+      mandatory: "Verpflichtend",
+      activeStepsOrder: "Reihenfolge aktiver Schritte",
+      noActiveSteps: "Keine aktiven Schritte",
+      operationTypesTitle: "Erlaubte Operationstypen",
+      operationTypesDesc: "Diese Konfiguration gilt nur fur die manuelle Inventur.",
+      available: "Verfugbar",
+      validationTitle: "Validierungen und Limits",
+      regexHelpAria: "Anleitung zum Schreiben von Regex-Formaten",
+      regexStrong: "Regex schreiben",
+      regexLine1: "^ bedeutet Anfang des Textes und $ das Ende.",
+      regexLine2: "\\d ist eine Ziffer, {4} bedeutet genau 4 Zeichen und - wird direkt geschrieben.",
+      regexLine3: "LOT-Beispiel:",
+      regexLine4: "Allgemeineres Beispiel:",
+      lotRegex: "LOT-Regex",
+      lotMessage: "LOT-Meldung",
+      eanRegex: "EAN-Regex",
+      eanMessage: "EAN-Meldung",
+      skuRegex: "SKU-Regex",
+      skuMessage: "SKU-Meldung",
+      quantityWarn: "Warnschwelle Menge",
+      quantityHard: "Hartes Mengenlimit",
+      quantityHardMessage: "Meldung Mengenlimit",
+      locationTimeout: "Zeitlimit Lokation (ms)",
+      saveTimeout: "API-Speicher-Timeout (ms)",
+      saveRetry: "Speicher-Wiederholungen",
+      fetchRetry: "Abruf-Wiederholungen",
+      historyTitle: "Historie der Konfigurationsaenderungen",
+      historyDesc: "Letzte Speicherungen der manuellen Prozesskonfiguration inklusive Benutzer.",
+      time: "Zeit",
+      user: "Benutzer",
+      action: "Aktion",
+      scope: "Bereich",
+      noHistory: "Keine gespeicherte Historie zu Konfigurationsaenderungen.",
+      overlay: "Prozesskonfiguration wird gespeichert und Operatoreinstellungen werden aktualisiert...",
+    },
+  }[language];
   const [configState, setConfigState] = useState(DEFAULT_MANUAL_PROCESS_CONFIG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -53,7 +222,7 @@ export default function ProcessConfigPanel() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError.message || "Nie udalo sie pobrac konfiguracji procesu");
+          setError(loadError.message || copy.loadError);
         }
       } finally {
         if (!cancelled) {
@@ -66,7 +235,7 @@ export default function ProcessConfigPanel() {
     return () => {
       cancelled = true;
     };
-  }, [user?.site_id]);
+  }, [copy.loadError, user?.site_id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,23 +317,23 @@ export default function ProcessConfigPanel() {
       const normalized = normalizeManualProcessConfig(configState);
 
       if (!normalized.steps.location?.enabled || !normalized.steps.location?.mandatory) {
-        throw new Error("Krok lokalizacji musi pozostac wlaczony i obowiazkowy.");
+        throw new Error(copy.locationRequired);
       }
 
       if (!normalized.steps.type?.enabled || !normalized.steps.type?.mandatory) {
-        throw new Error("Typ operacji musi pozostac wlaczony i obowiazkowy.");
+        throw new Error(copy.typeRequired);
       }
 
       if (!normalized.steps.quantity?.enabled || !normalized.steps.quantity?.mandatory) {
-        throw new Error("Ilosc musi pozostac wlaczona i obowiazkowa.");
+        throw new Error(copy.quantityRequired);
       }
 
       if (!normalized.steps.sku?.enabled && !normalized.steps.ean?.enabled) {
-        throw new Error("Musisz pozostawic aktywne co najmniej jedno z pol: SKU albo EAN.");
+        throw new Error(copy.skuOrEanRequired);
       }
 
       if (!Object.values(normalized.operationTypes).some((item) => item.enabled)) {
-        throw new Error("Co najmniej jeden typ operacji musi pozostac aktywny.");
+        throw new Error(copy.operationTypeRequired);
       }
 
       const result = await saveManualProcessAdminConfig({
@@ -173,9 +342,9 @@ export default function ProcessConfigPanel() {
       });
       setConfigState(result.config);
       setDataSource(result.source);
-      setSaveInfo("Konfiguracja procesu recznego zostala zapisana.");
+      setSaveInfo(copy.saved);
     } catch (saveError) {
-      setError(saveError.message || "Nie udalo sie zapisac konfiguracji procesu");
+      setError(saveError.message || copy.saveError);
     } finally {
       setSaving(false);
     }
@@ -183,11 +352,11 @@ export default function ProcessConfigPanel() {
 
   return (
     <PageShell
-      title="Konfiguracja procesu"
-      subtitle="Sterowanie reczna inwentaryzacja: kolejnosc krokow, widocznosc, wymagania i reguly walidacji. Proces pustych lokalizacji pozostaje niezalezny."
+      title={copy.title}
+      subtitle={copy.subtitle}
       icon={<SlidersHorizontal size={26} />}
       backTo="/admin"
-      backLabel="Powrot do ustawien"
+      backLabel={copy.backLabel}
       actions={
         <button
           type="button"
@@ -196,11 +365,11 @@ export default function ProcessConfigPanel() {
           onClick={handleSave}
         >
           <Save size={16} />
-          {saving ? "Zapisywanie..." : "Zapisz konfiguracje"}
+          {saving ? copy.saving : copy.saveConfig}
         </button>
       }
     >
-      {loading ? <div className="app-card">Pobieram konfiguracje recznej inwentaryzacji...</div> : null}
+      {loading ? <div className="app-card">{copy.loading}</div> : null}
       {error ? <div className="input-error-text">{error}</div> : null}
       {saveInfo ? <div className="helper-note">{saveInfo}</div> : null}
 
@@ -209,12 +378,12 @@ export default function ProcessConfigPanel() {
           <div className="app-card">
             <div className="system-status-section-header" style={{ marginBottom: 14 }}>
               <div>
-                <h3>Kroki procesu recznego</h3>
-                <p>Zmieniaj kolejnosc, widocznosc i wymagalnosc poszczegolnych etapow.</p>
+                <h3>{copy.stepsTitle}</h3>
+                <p>{copy.stepsDesc}</p>
               </div>
               <div className="system-status-section-summary">
                 <span className="system-alert__pill system-alert__pill--healthy">
-                  Zrodlo: {dataSource}
+                  {copy.source}: {dataSource}
                 </span>
               </div>
             </div>
@@ -230,7 +399,7 @@ export default function ProcessConfigPanel() {
                         <div className="process-config-step-card__label">{step.label}</div>
                       </div>
                       <div className="process-config-step-card__order">
-                        <label>Kolejnosc</label>
+                        <label>{copy.order}</label>
                         <input
                           className="app-input"
                           type="number"
@@ -243,13 +412,13 @@ export default function ProcessConfigPanel() {
 
                     <div className="process-config-step-card__toggles">
                       <ToggleField
-                        label="Widoczny"
+                        label={copy.visible}
                         checked={step.enabled}
                         disabled={isLocked}
                         onChange={(value) => updateStep(step.key, { enabled: value })}
                       />
                       <ToggleField
-                        label="Obowiazkowy"
+                        label={copy.mandatory}
                         checked={step.mandatory}
                         disabled={isLocked || !step.enabled}
                         onChange={(value) => updateStep(step.key, { mandatory: value })}
@@ -261,14 +430,14 @@ export default function ProcessConfigPanel() {
             </div>
 
             <div className="helper-note" style={{ marginTop: 14 }}>
-              Kolejnosc aktywnych krokow: <strong>{orderedPreview || "Brak aktywnych krokow"}</strong>
+              {copy.activeStepsOrder}: <strong>{orderedPreview || copy.noActiveSteps}</strong>
             </div>
           </div>
 
           <div className="process-config-layout-grid">
             <div className="app-card">
-              <h3>Dozwolone typy operacji</h3>
-              <p className="helper-note">Ta konfiguracja dotyczy tylko recznej inwentaryzacji.</p>
+              <h3>{copy.operationTypesTitle}</h3>
+              <p className="helper-note">{copy.operationTypesDesc}</p>
 
               <div className="process-config-step-list">
                 {Object.entries(configState.operationTypes).map(([key, value]) => (
@@ -281,7 +450,7 @@ export default function ProcessConfigPanel() {
                     </div>
                     <div className="process-config-step-card__toggles">
                       <ToggleField
-                        label="Dostepny"
+                        label={copy.available}
                         checked={value.enabled}
                         onChange={(enabled) => updateOperationType(key, { enabled })}
                       />
@@ -293,36 +462,35 @@ export default function ProcessConfigPanel() {
 
             <div className="app-card">
               <div className="process-config-card-header">
-                <h3>Walidacje i limity</h3>
+                <h3>{copy.validationTitle}</h3>
                 <div className="regex-help" tabIndex={0}>
                   <button
                     type="button"
                     className="regex-help__button"
-                    aria-label="Instrukcja pisania formatow regex"
+                    aria-label={copy.regexHelpAria}
                   >
                     i
                   </button>
                   <div className="regex-help__tooltip" role="tooltip">
-                    <strong>Jak pisac regex</strong>
+                    <strong>{copy.regexStrong}</strong>
                     <span>
-                      <code>^</code> oznacza poczatek tekstu, a <code>$</code> jego koniec.
+                      {copy.regexLine1}
                     </span>
                     <span>
-                      <code>\d</code> to cyfra, <code>{"{4}"}</code> to dokladnie 4 znaki, a
-                      myslnik <code>-</code> wpisujesz doslownie.
+                      {copy.regexLine2}
                     </span>
                     <span>
-                      Przyklad LOT: <code>^\d{"{4}"}-\d{"{3}"}-\d{"{3}"}-\d{"{4}"}$</code>
+                      {copy.regexLine3} <code>^\d{"{4}"}-\d{"{3}"}-\d{"{3}"}-\d{"{4}"}$</code>
                     </span>
                     <span>
-                      Przyklad bardziej ogolny: <code>^[A-Za-z0-9._/-]{"{1,50}"}$</code>
+                      {copy.regexLine4} <code>^[A-Za-z0-9._/-]{"{1,50}"}$</code>
                     </span>
                   </div>
                 </div>
               </div>
               <div className="process-config-form-grid">
                 <label>
-                  <span>Regex LOT</span>
+                  <span>{copy.lotRegex}</span>
                   <input
                     className="app-input"
                     value={configState.validation.lotPattern}
@@ -331,7 +499,7 @@ export default function ProcessConfigPanel() {
                 </label>
 
                 <label>
-                  <span>Komunikat LOT</span>
+                  <span>{copy.lotMessage}</span>
                   <input
                     className="app-input"
                     value={configState.validation.lotMessage}
@@ -340,7 +508,7 @@ export default function ProcessConfigPanel() {
                 </label>
 
                 <label>
-                  <span>Regex EAN</span>
+                  <span>{copy.eanRegex}</span>
                   <input
                     className="app-input"
                     value={configState.validation.eanPattern}
@@ -349,7 +517,7 @@ export default function ProcessConfigPanel() {
                 </label>
 
                 <label>
-                  <span>Komunikat EAN</span>
+                  <span>{copy.eanMessage}</span>
                   <input
                     className="app-input"
                     value={configState.validation.eanMessage}
@@ -358,7 +526,7 @@ export default function ProcessConfigPanel() {
                 </label>
 
                 <label>
-                  <span>Regex SKU</span>
+                  <span>{copy.skuRegex}</span>
                   <input
                     className="app-input"
                     value={configState.validation.skuPattern}
@@ -367,7 +535,7 @@ export default function ProcessConfigPanel() {
                 </label>
 
                 <label>
-                  <span>Komunikat SKU</span>
+                  <span>{copy.skuMessage}</span>
                   <input
                     className="app-input"
                     value={configState.validation.skuMessage}
@@ -376,7 +544,7 @@ export default function ProcessConfigPanel() {
                 </label>
 
                 <label>
-                  <span>Prog ostrzezenia ilosci</span>
+                  <span>{copy.quantityWarn}</span>
                   <input
                     className="app-input"
                     type="number"
@@ -389,7 +557,7 @@ export default function ProcessConfigPanel() {
                 </label>
 
                 <label>
-                  <span>Twardy limit ilosci</span>
+                  <span>{copy.quantityHard}</span>
                   <input
                     className="app-input"
                     type="number"
@@ -402,7 +570,7 @@ export default function ProcessConfigPanel() {
                 </label>
 
                 <label>
-                  <span>Komunikat limitu ilosci</span>
+                  <span>{copy.quantityHardMessage}</span>
                   <input
                     className="app-input"
                     value={configState.validation.quantityHardLimitMessage}
@@ -411,7 +579,7 @@ export default function ProcessConfigPanel() {
                 </label>
 
                 <label>
-                  <span>Limit czasu lokalizacji (ms)</span>
+                  <span>{copy.locationTimeout}</span>
                   <input
                     className="app-input"
                     type="number"
@@ -425,7 +593,7 @@ export default function ProcessConfigPanel() {
                 </label>
 
                 <label>
-                  <span>Timeout zapisu API (ms)</span>
+                  <span>{copy.saveTimeout}</span>
                   <input
                     className="app-input"
                     type="number"
@@ -439,7 +607,7 @@ export default function ProcessConfigPanel() {
                 </label>
 
                 <label>
-                  <span>Retry zapisu</span>
+                  <span>{copy.saveRetry}</span>
                   <input
                     className="app-input"
                     type="number"
@@ -450,7 +618,7 @@ export default function ProcessConfigPanel() {
                 </label>
 
                 <label>
-                  <span>Retry pobran</span>
+                  <span>{copy.fetchRetry}</span>
                   <input
                     className="app-input"
                     type="number"
@@ -466,8 +634,8 @@ export default function ProcessConfigPanel() {
           <div className="app-card" style={{ marginTop: 18 }}>
             <div className="system-status-section-header">
               <div>
-                <h3>Historia zmian konfiguracji</h3>
-                <p>Ostatnie zapisy konfiguracji procesu recznego wraz z informacja, kto wprowadzil zmiane.</p>
+                <h3>{copy.historyTitle}</h3>
+                <p>{copy.historyDesc}</p>
               </div>
             </div>
 
@@ -476,16 +644,16 @@ export default function ProcessConfigPanel() {
                 <table className="app-table">
                   <thead>
                     <tr>
-                      <th>Czas</th>
-                      <th>Uzytkownik</th>
-                      <th>Akcja</th>
-                      <th>Zakres</th>
+                      <th>{copy.time}</th>
+                      <th>{copy.user}</th>
+                      <th>{copy.action}</th>
+                      <th>{copy.scope}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {historyRows.map((row) => (
                       <tr key={row.id}>
-                        <td>{row.timestamp ? new Date(row.timestamp).toLocaleString() : "-"}</td>
+                        <td>{row.timestamp ? new Date(row.timestamp).toLocaleString(locale) : "-"}</td>
                         <td>{row.userName || row.userEmail || row.userId || "-"}</td>
                         <td>{row.eventType || "-"}</td>
                         <td>{row.entity || "-"}</td>
@@ -495,7 +663,7 @@ export default function ProcessConfigPanel() {
                 </table>
               </div>
             ) : (
-              <div className="app-empty-state">Brak zapisanej historii zmian konfiguracji.</div>
+              <div className="app-empty-state">{copy.noHistory}</div>
             )}
           </div>
         </>
@@ -503,7 +671,7 @@ export default function ProcessConfigPanel() {
       <LoadingOverlay
         open={saving}
         fullscreen
-        message="Zapisuje konfiguracje procesu i aktualizuje ustawienia operatorow..."
+        message={copy.overlay}
       />
     </PageShell>
   );

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import PageShell from "../../components/layout/PageShell";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 import {
   createAdminUserAccount,
   deleteAdminUserAccount,
@@ -26,20 +27,20 @@ const INITIAL_PASSWORD_FORM = {
   newPassword: "",
 };
 
-function formatLastActivity(value) {
+function formatLastActivity(value, locale, copy) {
   if (!value) {
-    return "Brak aktywnosci";
+    return copy.noActivity;
   }
 
-  return new Date(value).toLocaleString();
+  return new Date(value).toLocaleString(locale);
 }
 
-function formatLastLogin(value) {
+function formatLastLogin(value, locale, copy) {
   if (!value) {
-    return "Brak logowania";
+    return copy.noLogin;
   }
 
-  return new Date(value).toLocaleString();
+  return new Date(value).toLocaleString(locale);
 }
 
 function getStatusClass(status) {
@@ -51,6 +52,252 @@ function getStatusClass(status) {
 }
 
 export default function UserPanelModern() {
+  const { language, locale } = useAppPreferences();
+  const copy = {
+    pl: {
+      noActivity: "Brak aktywnosci",
+      noLogin: "Brak logowania",
+      loadError: "Nie udalo sie pobrac listy uzytkownikow",
+      saveChangesError: "Nie udalo sie zapisac zmian",
+      emailPasswordRequired: "Email i haslo sa wymagane",
+      createUserError: "Nie udalo sie utworzyc uzytkownika",
+      enterNewPassword: "Wprowadz nowe haslo",
+      passwordResetSuccess: "Haslo zostalo zresetowane.",
+      resetPasswordError: "Nie udalo sie zresetowac hasla",
+      deleteUserError: "Nie udalo sie usunac uzytkownika",
+      title: "Uzytkownicy",
+      subtitle: "Lista operatorow, ich ostatnia aktywnosc i panel szybkiej administracji kontami.",
+      backLabel: "Powrot do ustawien",
+      addUser: "Dodaj uzytkownika",
+      search: "Szukaj",
+      searchPlaceholder: "Email, pseudonim, rola lub numer operatora",
+      status: "Status",
+      all: "Wszystkie",
+      active: "Aktywne",
+      inactive: "Nieaktywne",
+      loading: "Ladowanie listy uzytkownikow...",
+      fallbackInfo: "Lista zostala zaladowana z tabel `profiles` i `sessions`, bo edge function `admin-users` nie odpowiedziala. Akcje takie jak tworzenie kont, reset hasla i usuwanie wymagaja wdrozonego backendu administratorskiego.",
+      rpcInfoPrefix: "Lista i edycja profilu sa obslugiwane przez SQL RPC. Backend edge jest",
+      rpcInfoDown: " niedostepny, wiec create/reset/delete pozostaja zablokowane.",
+      rpcInfoUp: " aktywny, wiec pelne akcje administratorskie sa dostepne.",
+      rpcInfoUnknown: " jeszcze niezweryfikowany. Akcje create/reset/delete sprawdza go przy pierwszym uzyciu.",
+      accountsCount: "Liczba kont",
+      allProfilesHint: "Wszystkie profile widoczne w panelu.",
+      activeAccounts: "Aktywne konta",
+      activeAccountsHint: "Konta z dostepem do logowania.",
+      activeSessions: "Aktywne sesje",
+      activeSessionsHint: "Sesje aktualnie oznaczone jako active.",
+      accountsWithLogin: "Konta z logowaniem",
+      accountsWithLoginHint: "Profile, dla ktorych mamy timestamp ostatniego logowania.",
+      usersList: "Lista uzytkownikow",
+      usersAfterFilters: "{{count}} kont po zastosowaniu filtrow.",
+      user: "Uzytkownik",
+      role: "Rola",
+      lastLogin: "Ostatnie logowanie",
+      lastActivity: "Ostatnia aktywnosc",
+      operatorNumber: "Numer operatora",
+      session: "Sesja",
+      actions: "Akcje",
+      noAlias: "Brak pseudonimu",
+      noEmail: "Brak emaila",
+      none: "brak",
+      edit: "Edytuj",
+      noUsersFiltered: "Brak uzytkownikow spelniajacych filtry.",
+      addUserTitle: "Dodaj uzytkownika",
+      addUserDesc: "Utworz nowe konto operatora i przygotuj jego profil roboczy.",
+      close: "Zamknij",
+      email: "Email",
+      initialPassword: "Haslo startowe",
+      passwordPlaceholder: "Wprowadz haslo",
+      alias: "Pseudonim / imie operatora",
+      aliasPlaceholder: "Np. Jan",
+      operatorNumberPlaceholder: "Np. OP-014",
+      createUserHint: "To konto zostanie utworzone przez bezpieczny backend administratorski, bez obchodzenia sesji zalogowanego admina.",
+      backendUnavailableCreate: "Tworzenie kont jest chwilowo niedostepne, bo backend `admin-users` nie odpowiada.",
+      createAccount: "Utworz konto",
+      cancel: "Anuluj",
+      editUserTitle: "Edycja uzytkownika",
+      lastActivityPrefix: "ostatnia aktywnosc",
+      aliasPlaceholderEdit: "Wprowadz imie operatora",
+      accountStatus: "Status konta",
+      lastLoginCard: "Ostatnie logowanie",
+      authSourceHint: "Ta data pochodzi z warstwy logowania Supabase Auth.",
+      lastSessionCard: "Ostatnia sesja",
+      sessionsHint: "Status sesji pochodzi z ostatniej sesji z tabeli sessions.",
+      newPassword: "Nowe haslo",
+      resetPasswordPlaceholder: "Wprowadz nowe haslo do resetu",
+      editHint: "Zmiana roli, aktywacja, dezaktywacja, pseudonim i numer operatora sa przygotowane pod bezpieczny backend administracyjny.",
+      backendUnavailableRpc: "Edycja profilu jest chwilowo niedostepna, bo backend RPC nie odpowiedzial.",
+      backendUnavailableEdge: "Reset hasla i usuwanie sa chwilowo wylaczone, dopoki backend `admin-users` nie zostanie wdrozony.",
+      saveChanges: "Zapisz zmiany",
+      deactivate: "Dezaktywuj konto",
+      activate: "Aktywuj konto",
+      resetPassword: "Reset hasla",
+      deleteUser: "Usun uzytkownika",
+    },
+    en: {
+      noActivity: "No activity",
+      noLogin: "No login",
+      loadError: "Could not load the user list",
+      saveChangesError: "Could not save changes",
+      emailPasswordRequired: "Email and password are required",
+      createUserError: "Could not create the user",
+      enterNewPassword: "Enter a new password",
+      passwordResetSuccess: "Password has been reset.",
+      resetPasswordError: "Could not reset the password",
+      deleteUserError: "Could not delete the user",
+      title: "Users",
+      subtitle: "List of operators, their latest activity and a quick account administration panel.",
+      backLabel: "Back to settings",
+      addUser: "Add user",
+      search: "Search",
+      searchPlaceholder: "Email, alias, role or operator number",
+      status: "Status",
+      all: "All",
+      active: "Active",
+      inactive: "Inactive",
+      loading: "Loading user list...",
+      fallbackInfo: "The list was loaded from the `profiles` and `sessions` tables because the `admin-users` edge function did not respond. Actions such as account creation, password reset and deletion require the deployed admin backend.",
+      rpcInfoPrefix: "List and profile editing are handled by SQL RPC. The edge backend is",
+      rpcInfoDown: " unavailable, so create/reset/delete remain blocked.",
+      rpcInfoUp: " active, so full admin actions are available.",
+      rpcInfoUnknown: " not verified yet. Create/reset/delete actions will check it on first use.",
+      accountsCount: "Accounts",
+      allProfilesHint: "All profiles visible in the panel.",
+      activeAccounts: "Active accounts",
+      activeAccountsHint: "Accounts with login access.",
+      activeSessions: "Active sessions",
+      activeSessionsHint: "Sessions currently marked as active.",
+      accountsWithLogin: "Accounts with login",
+      accountsWithLoginHint: "Profiles that have a last login timestamp.",
+      usersList: "User list",
+      usersAfterFilters: "{{count}} accounts after filters.",
+      user: "User",
+      role: "Role",
+      lastLogin: "Last login",
+      lastActivity: "Last activity",
+      operatorNumber: "Operator number",
+      session: "Session",
+      actions: "Actions",
+      noAlias: "No alias",
+      noEmail: "No email",
+      none: "none",
+      edit: "Edit",
+      noUsersFiltered: "No users match the filters.",
+      addUserTitle: "Add user",
+      addUserDesc: "Create a new operator account and prepare its work profile.",
+      close: "Close",
+      email: "Email",
+      initialPassword: "Initial password",
+      passwordPlaceholder: "Enter password",
+      alias: "Alias / operator name",
+      aliasPlaceholder: "e.g. John",
+      operatorNumberPlaceholder: "e.g. OP-014",
+      createUserHint: "This account will be created through the secure admin backend without bypassing the logged-in admin session.",
+      backendUnavailableCreate: "Account creation is temporarily unavailable because the `admin-users` backend is not responding.",
+      createAccount: "Create account",
+      cancel: "Cancel",
+      editUserTitle: "Edit user",
+      lastActivityPrefix: "last activity",
+      aliasPlaceholderEdit: "Enter operator name",
+      accountStatus: "Account status",
+      lastLoginCard: "Last login",
+      authSourceHint: "This date comes from the Supabase Auth login layer.",
+      lastSessionCard: "Last session",
+      sessionsHint: "Session status comes from the latest record in the sessions table.",
+      newPassword: "New password",
+      resetPasswordPlaceholder: "Enter new password to reset",
+      editHint: "Role changes, activation, deactivation, alias and operator number are prepared for the secure admin backend.",
+      backendUnavailableRpc: "Profile editing is temporarily unavailable because the RPC backend did not respond.",
+      backendUnavailableEdge: "Password reset and delete are temporarily disabled until the `admin-users` backend is deployed.",
+      saveChanges: "Save changes",
+      deactivate: "Deactivate account",
+      activate: "Activate account",
+      resetPassword: "Reset password",
+      deleteUser: "Delete user",
+    },
+    de: {
+      noActivity: "Keine Aktivitat",
+      noLogin: "Kein Login",
+      loadError: "Benutzerliste konnte nicht geladen werden",
+      saveChangesError: "Aenderungen konnten nicht gespeichert werden",
+      emailPasswordRequired: "E-Mail und Passwort sind erforderlich",
+      createUserError: "Benutzer konnte nicht erstellt werden",
+      enterNewPassword: "Neues Passwort eingeben",
+      passwordResetSuccess: "Passwort wurde zuruckgesetzt.",
+      resetPasswordError: "Passwort konnte nicht zuruckgesetzt werden",
+      deleteUserError: "Benutzer konnte nicht geloescht werden",
+      title: "Benutzer",
+      subtitle: "Liste der Operatoren, ihrer letzten Aktivitat und ein Schnellbereich fur die Kontoverwaltung.",
+      backLabel: "Zuruck zu den Einstellungen",
+      addUser: "Benutzer hinzufugen",
+      search: "Suchen",
+      searchPlaceholder: "E-Mail, Alias, Rolle oder Operatornummer",
+      status: "Status",
+      all: "Alle",
+      active: "Aktiv",
+      inactive: "Inaktiv",
+      loading: "Benutzerliste wird geladen...",
+      fallbackInfo: "Die Liste wurde aus den Tabellen `profiles` und `sessions` geladen, weil die Edge Function `admin-users` nicht geantwortet hat. Aktionen wie Benutzeranlage, Passwort-Reset und Loeschung benoetigen das bereitgestellte Admin-Backend.",
+      rpcInfoPrefix: "Liste und Profilbearbeitung werden ueber SQL RPC bedient. Das Edge-Backend ist",
+      rpcInfoDown: " nicht verfuegbar, daher bleiben Erstellen/Reset/Loeschen blockiert.",
+      rpcInfoUp: " aktiv, daher sind vollstaendige Admin-Aktionen verfuegbar.",
+      rpcInfoUnknown: " noch nicht verifiziert. Erstellen/Reset/Loeschen pruefen es bei der ersten Nutzung.",
+      accountsCount: "Konten",
+      allProfilesHint: "Alle im Panel sichtbaren Profile.",
+      activeAccounts: "Aktive Konten",
+      activeAccountsHint: "Konten mit Login-Zugang.",
+      activeSessions: "Aktive Sitzungen",
+      activeSessionsHint: "Sitzungen, die aktuell als aktiv markiert sind.",
+      accountsWithLogin: "Konten mit Login",
+      accountsWithLoginHint: "Profile mit Zeitstempel fur den letzten Login.",
+      usersList: "Benutzerliste",
+      usersAfterFilters: "{{count}} Konten nach Anwendung der Filter.",
+      user: "Benutzer",
+      role: "Rolle",
+      lastLogin: "Letzter Login",
+      lastActivity: "Letzte Aktivitat",
+      operatorNumber: "Operatornummer",
+      session: "Sitzung",
+      actions: "Aktionen",
+      noAlias: "Kein Alias",
+      noEmail: "Keine E-Mail",
+      none: "keine",
+      edit: "Bearbeiten",
+      noUsersFiltered: "Keine Benutzer entsprechen den Filtern.",
+      addUserTitle: "Benutzer hinzufugen",
+      addUserDesc: "Neues Operator-Konto anlegen und Arbeitsprofil vorbereiten.",
+      close: "Schliessen",
+      email: "E-Mail",
+      initialPassword: "Startpasswort",
+      passwordPlaceholder: "Passwort eingeben",
+      alias: "Alias / Operatorname",
+      aliasPlaceholder: "z. B. Jan",
+      operatorNumberPlaceholder: "z. B. OP-014",
+      createUserHint: "Dieses Konto wird ueber das sichere Admin-Backend angelegt, ohne die Sitzung des angemeldeten Admins zu umgehen.",
+      backendUnavailableCreate: "Die Benutzeranlage ist voruebergehend nicht verfuegbar, weil das `admin-users`-Backend nicht antwortet.",
+      createAccount: "Konto anlegen",
+      cancel: "Abbrechen",
+      editUserTitle: "Benutzer bearbeiten",
+      lastActivityPrefix: "letzte Aktivitat",
+      aliasPlaceholderEdit: "Operatorname eingeben",
+      accountStatus: "Kontostatus",
+      lastLoginCard: "Letzter Login",
+      authSourceHint: "Dieses Datum stammt aus der Supabase-Auth-Login-Schicht.",
+      lastSessionCard: "Letzte Sitzung",
+      sessionsHint: "Der Sitzungsstatus stammt aus dem letzten Eintrag der Tabelle `sessions`.",
+      newPassword: "Neues Passwort",
+      resetPasswordPlaceholder: "Neues Passwort fur den Reset eingeben",
+      editHint: "Rollenwechsel, Aktivierung, Deaktivierung, Alias und Operatornummer sind fur das sichere Admin-Backend vorbereitet.",
+      backendUnavailableRpc: "Die Profilbearbeitung ist voruebergehend nicht verfuegbar, weil das RPC-Backend nicht geantwortet hat.",
+      backendUnavailableEdge: "Passwort-Reset und Loeschen sind voruebergehend deaktiviert, bis das `admin-users`-Backend bereitgestellt ist.",
+      saveChanges: "Aenderungen speichern",
+      deactivate: "Konto deaktivieren",
+      activate: "Konto aktivieren",
+      resetPassword: "Passwort zurucksetzen",
+      deleteUser: "Benutzer loeschen",
+    },
+  }[language];
   const [rows, setRows] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -76,7 +323,7 @@ export default function UserPanelModern() {
       setError("");
     } catch (err) {
       setRpcAvailable(false);
-      setError(err.message || "Nie udalo sie pobrac listy uzytkownikow");
+      setError(err.message || copy.loadError);
     } finally {
       setLoading(false);
     }
@@ -161,7 +408,7 @@ export default function UserPanelModern() {
       await loadUsers();
       closeEditor();
     } catch (err) {
-      alert(err.message || "Nie udalo sie zapisac zmian");
+      alert(err.message || copy.saveChangesError);
     } finally {
       setSaving(false);
     }
@@ -175,7 +422,7 @@ export default function UserPanelModern() {
 
   async function handleCreateUser() {
     if (!createForm.email || !createForm.password) {
-      alert("Email i haslo sa wymagane");
+      alert(copy.emailPasswordRequired);
       return;
     }
 
@@ -190,7 +437,7 @@ export default function UserPanelModern() {
       if (String(err.message || "").toLowerCase().includes("backend `admin-users` nie odpowiada")) {
         setEdgeAvailable(false);
       }
-      alert(err.message || "Nie udalo sie utworzyc uzytkownika");
+      alert(err.message || copy.createUserError);
     } finally {
       setSaving(false);
     }
@@ -199,7 +446,7 @@ export default function UserPanelModern() {
   async function handlePasswordReset() {
     if (!selectedUser) return;
     if (!passwordForm.newPassword) {
-      alert("Wprowadz nowe haslo");
+      alert(copy.enterNewPassword);
       return;
     }
 
@@ -208,12 +455,12 @@ export default function UserPanelModern() {
       await resetAdminUserPassword(selectedUser.user_id, passwordForm.newPassword);
       setEdgeAvailable(true);
       setPasswordForm(INITIAL_PASSWORD_FORM);
-      alert("Haslo zostalo zresetowane.");
+      alert(copy.passwordResetSuccess);
     } catch (err) {
       if (String(err.message || "").toLowerCase().includes("backend `admin-users` nie odpowiada")) {
         setEdgeAvailable(false);
       }
-      alert(err.message || "Nie udalo sie zresetowac hasla");
+      alert(err.message || copy.resetPasswordError);
     } finally {
       setSaving(false);
     }
@@ -232,7 +479,7 @@ export default function UserPanelModern() {
       if (String(err.message || "").toLowerCase().includes("backend `admin-users` nie odpowiada")) {
         setEdgeAvailable(false);
       }
-      alert(err.message || "Nie udalo sie usunac uzytkownika");
+      alert(err.message || copy.deleteUserError);
     } finally {
       setSaving(false);
     }
@@ -240,23 +487,23 @@ export default function UserPanelModern() {
 
   return (
     <PageShell
-      title="Uzytkownicy"
-      subtitle="Lista operatorow, ich ostatnia aktywnosc i panel szybkiej administracji kontami."
+      title={copy.title}
+      subtitle={copy.subtitle}
       icon={<Users size={26} />}
       backTo="/admin"
-      backLabel="Powrot do ustawien"
+      backLabel={copy.backLabel}
       compact
       actions={
         <Button onClick={() => setCreateOpen(true)}>
           <Plus size={16} />
-          Dodaj uzytkownika
+          {copy.addUser}
         </Button>
       }
     >
       <div className="app-card user-toolbar-card">
         <div className="user-toolbar-row">
           <div className="app-field user-toolbar-row__search">
-            <label className="app-field__label">Szukaj</label>
+            <label className="app-field__label">{copy.search}</label>
             <div style={{ position: "relative" }}>
               <Search
                 size={16}
@@ -272,38 +519,37 @@ export default function UserPanelModern() {
                 style={{ paddingLeft: 40 }}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Email, pseudonim, rola lub numer operatora"
+                placeholder={copy.searchPlaceholder}
               />
             </div>
           </div>
 
           <div className="app-field">
-            <label className="app-field__label">Status</label>
+            <label className="app-field__label">{copy.status}</label>
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option value="all">Wszystkie</option>
-              <option value="active">Aktywne</option>
-              <option value="inactive">Nieaktywne</option>
+              <option value="all">{copy.all}</option>
+              <option value="active">{copy.active}</option>
+              <option value="inactive">{copy.inactive}</option>
             </select>
           </div>
         </div>
       </div>
 
-      {loading ? <div className="app-card">Ladowanie listy uzytkownikow...</div> : null}
+      {loading ? <div className="app-card">{copy.loading}</div> : null}
       {error ? <div className="input-error-text">{error}</div> : null}
       {!loading && !error && usesFallbackBackend ? (
         <div className="app-card" style={{ marginBottom: 16 }}>
-          Lista zostala zaladowana z tabel `profiles` i `sessions`, bo edge function `admin-users` nie odpowiedziala.
-          Akcje takie jak tworzenie kont, reset hasla i usuwanie wymagaja wdrozonego backendu administratorskiego.
+          {copy.fallbackInfo}
         </div>
       ) : null}
       {!loading && !error && rpcAvailable ? (
         <div className="app-card" style={{ marginBottom: 16 }}>
-          Lista i edycja profilu sa obslugiwane przez SQL RPC. Backend edge jest
+          {copy.rpcInfoPrefix}
           {edgeAvailable === false
-            ? " niedostepny, wiec create/reset/delete pozostaja zablokowane."
+            ? copy.rpcInfoDown
             : edgeAvailable === true
-              ? " aktywny, wiec pelne akcje administratorskie sa dostepne."
-              : " jeszcze niezweryfikowany. Akcje create/reset/delete sprawdza go przy pierwszym uzyciu."}
+              ? copy.rpcInfoUp
+              : copy.rpcInfoUnknown}
         </div>
       ) : null}
 
@@ -311,30 +557,30 @@ export default function UserPanelModern() {
         <div className="system-status-grid" style={{ marginBottom: 16 }}>
           <div className="system-status-metric system-status-metric--neutral">
             <div>
-              <div className="system-status-metric__label">Liczba kont</div>
+              <div className="system-status-metric__label">{copy.accountsCount}</div>
               <div className="system-status-metric__value">{userSummary.totalUsers}</div>
-              <div className="system-status-metric__hint">Wszystkie profile widoczne w panelu.</div>
+              <div className="system-status-metric__hint">{copy.allProfilesHint}</div>
             </div>
           </div>
           <div className="system-status-metric system-status-metric--healthy">
             <div>
-              <div className="system-status-metric__label">Aktywne konta</div>
+              <div className="system-status-metric__label">{copy.activeAccounts}</div>
               <div className="system-status-metric__value">{userSummary.activeAccounts}</div>
-              <div className="system-status-metric__hint">Konta z dostepem do logowania.</div>
+              <div className="system-status-metric__hint">{copy.activeAccountsHint}</div>
             </div>
           </div>
           <div className="system-status-metric system-status-metric--neutral">
             <div>
-              <div className="system-status-metric__label">Aktywne sesje</div>
+              <div className="system-status-metric__label">{copy.activeSessions}</div>
               <div className="system-status-metric__value">{userSummary.activeSessions}</div>
-              <div className="system-status-metric__hint">Sesje aktualnie oznaczone jako active.</div>
+              <div className="system-status-metric__hint">{copy.activeSessionsHint}</div>
             </div>
           </div>
           <div className="system-status-metric system-status-metric--neutral">
             <div>
-              <div className="system-status-metric__label">Konta z logowaniem</div>
+              <div className="system-status-metric__label">{copy.accountsWithLogin}</div>
               <div className="system-status-metric__value">{userSummary.recentLogins}</div>
-              <div className="system-status-metric__hint">Profile, dla ktorych mamy timestamp ostatniego logowania.</div>
+              <div className="system-status-metric__hint">{copy.accountsWithLoginHint}</div>
             </div>
           </div>
         </div>
@@ -345,10 +591,10 @@ export default function UserPanelModern() {
           <div className="app-module-panel__header" style={{ marginBottom: 14 }}>
             <div>
               <h2 className="process-panel__title" style={{ fontSize: 24 }}>
-                Lista uzytkownikow
+                {copy.usersList}
               </h2>
               <p className="process-panel__subtitle">
-                {filteredRows.length} kont po zastosowaniu filtrow.
+                {copy.usersAfterFilters.replace("{{count}}", filteredRows.length)}
               </p>
             </div>
           </div>
@@ -357,14 +603,14 @@ export default function UserPanelModern() {
             <table className="app-table">
               <thead>
                 <tr>
-                  <th>Uzytkownik</th>
-                  <th>Rola</th>
-                  <th>Status</th>
-                  <th>Ostatnie logowanie</th>
-                  <th>Ostatnia aktywnosc</th>
-                  <th>Numer operatora</th>
-                  <th>Sesja</th>
-                  <th>Akcje</th>
+                  <th>{copy.user}</th>
+                  <th>{copy.role}</th>
+                  <th>{copy.status}</th>
+                  <th>{copy.lastLogin}</th>
+                  <th>{copy.lastActivity}</th>
+                  <th>{copy.operatorNumber}</th>
+                  <th>{copy.session}</th>
+                  <th>{copy.actions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -376,23 +622,23 @@ export default function UserPanelModern() {
                           {(row.alias || row.email || "?").slice(0, 1).toUpperCase()}
                         </div>
                         <div>
-                          <div className="user-inline__title">{row.alias || "Brak pseudonimu"}</div>
-                          <div className="user-inline__meta">{row.email || "Brak emaila"}</div>
+                          <div className="user-inline__title">{row.alias || copy.noAlias}</div>
+                          <div className="user-inline__meta">{row.email || copy.noEmail}</div>
                         </div>
                       </div>
                     </td>
                     <td style={{ textTransform: "capitalize" }}>{row.role}</td>
                     <td>
                       <span className={getStatusClass(row.status)}>
-                        {row.status === "active" ? "Aktywne" : "Nieaktywne"}
+                        {row.status === "active" ? copy.active : copy.inactive}
                       </span>
                     </td>
-                    <td>{formatLastLogin(row.last_sign_in_at)}</td>
-                    <td>{formatLastActivity(row.last_activity)}</td>
+                    <td>{formatLastLogin(row.last_sign_in_at, locale, copy)}</td>
+                    <td>{formatLastActivity(row.last_activity, locale, copy)}</td>
                     <td>{row.operatorNumber || "-"}</td>
                     <td>
                       <span className={getStatusClass(row.latest_session_status)}>
-                        {row.latest_session_status || "brak"}
+                        {row.latest_session_status || copy.none}
                       </span>
                     </td>
                     <td>
@@ -403,7 +649,7 @@ export default function UserPanelModern() {
                         onClick={() => openEditor(row)}
                       >
                         <Edit3 size={16} />
-                        Edytuj
+                        {copy.edit}
                       </Button>
                     </td>
                   </tr>
@@ -412,7 +658,7 @@ export default function UserPanelModern() {
                 {filteredRows.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="app-empty-state">
-                      Brak uzytkownikow spelniajacych filtry.
+                      {copy.noUsersFiltered}
                     </td>
                   </tr>
                 ) : null}
@@ -428,20 +674,20 @@ export default function UserPanelModern() {
             <div className="history-modal__header">
               <div>
                 <h2 className="process-panel__title" style={{ fontSize: 26, margin: 0 }}>
-                  Dodaj uzytkownika
+                  {copy.addUserTitle}
                 </h2>
                 <p className="process-panel__subtitle">
-                  Utworz nowe konto operatora i przygotuj jego profil roboczy.
+                  {copy.addUserDesc}
                 </p>
               </div>
               <Button variant="secondary" onClick={() => setCreateOpen(false)}>
-                Zamknij
+                {copy.close}
               </Button>
             </div>
 
             <div className="history-modal__grid">
               <Input
-                label="Email"
+                label={copy.email}
                 value={createForm.email}
                 onChange={(event) =>
                   setCreateForm((current) => ({ ...current, email: event.target.value }))
@@ -449,32 +695,32 @@ export default function UserPanelModern() {
                 placeholder="operator@firma.pl"
               />
               <Input
-                label="Haslo startowe"
+                label={copy.initialPassword}
                 type="password"
                 value={createForm.password}
                 onChange={(event) =>
                   setCreateForm((current) => ({ ...current, password: event.target.value }))
                 }
-                placeholder="Wprowadz haslo"
+                placeholder={copy.passwordPlaceholder}
               />
               <Input
-                label="Pseudonim / imie operatora"
+                label={copy.alias}
                 value={createForm.name}
                 onChange={(event) =>
                   setCreateForm((current) => ({ ...current, name: event.target.value }))
                 }
-                placeholder="Np. Jan"
+                placeholder={copy.aliasPlaceholder}
               />
               <Input
-                label="Numer operatora"
+                label={copy.operatorNumber}
                 value={createForm.operatorNumber}
                 onChange={(event) =>
                   setCreateForm((current) => ({ ...current, operatorNumber: event.target.value }))
                 }
-                placeholder="Np. OP-014"
+                placeholder={copy.operatorNumberPlaceholder}
               />
               <div className="app-field">
-                <label className="app-field__label">Rola</label>
+                <label className="app-field__label">{copy.role}</label>
                 <select
                   value={createForm.role}
                   onChange={(event) =>
@@ -489,7 +735,7 @@ export default function UserPanelModern() {
                 </select>
               </div>
               <div className="app-field">
-                <label className="app-field__label">Status</label>
+                <label className="app-field__label">{copy.status}</label>
                 <select
                   value={createForm.status}
                   onChange={(event) =>
@@ -498,7 +744,7 @@ export default function UserPanelModern() {
                 >
                   {STATUS_OPTIONS.map((status) => (
                     <option key={status} value={status}>
-                      {status === "active" ? "Aktywne" : "Nieaktywne"}
+                      {status === "active" ? copy.active : copy.inactive}
                     </option>
                   ))}
                 </select>
@@ -506,21 +752,21 @@ export default function UserPanelModern() {
             </div>
 
             <p className="helper-note" style={{ marginTop: 14 }}>
-              To konto zostanie utworzone przez bezpieczny backend administratorski, bez obchodzenia sesji zalogowanego admina.
+              {copy.createUserHint}
             </p>
             {edgeAvailable === false ? (
               <p className="input-error-text" style={{ marginTop: 10 }}>
-                Tworzenie kont jest chwilowo niedostepne, bo backend `admin-users` nie odpowiada.
+                {copy.backendUnavailableCreate}
               </p>
             ) : null}
 
             <div className="process-actions" style={{ marginTop: 20 }}>
               <Button loading={saving} onClick={handleCreateUser}>
                 <UserPlus size={16} />
-                Utworz konto
+                {copy.createAccount}
               </Button>
               <Button variant="secondary" onClick={() => setCreateOpen(false)}>
-                Anuluj
+                {copy.cancel}
               </Button>
             </div>
           </div>
@@ -533,29 +779,29 @@ export default function UserPanelModern() {
             <div className="history-modal__header">
               <div>
                 <h2 className="process-panel__title" style={{ fontSize: 26, margin: 0 }}>
-                  Edycja uzytkownika
+                  {copy.editUserTitle}
                 </h2>
                 <p className="process-panel__subtitle">
-                  {selectedUser.email || "Brak emaila"} - ostatnia aktywnosc: {formatLastActivity(selectedUser.last_activity)}
+                  {selectedUser.email || copy.noEmail} - {copy.lastActivityPrefix}: {formatLastActivity(selectedUser.last_activity, locale, copy)}
                 </p>
               </div>
               <Button variant="secondary" onClick={closeEditor}>
-                Zamknij
+                {copy.close}
               </Button>
             </div>
 
             <div className="history-modal__grid">
-              <Input label="Email" value={draft.email || ""} disabled />
+              <Input label={copy.email} value={draft.email || ""} disabled />
               <Input
-                label="Pseudonim / imie operatora"
+                label={copy.alias}
                 value={draft.name || ""}
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, name: event.target.value }))
                 }
-                placeholder="Wprowadz imie operatora"
+                placeholder={copy.aliasPlaceholderEdit}
               />
               <div className="app-field">
-                <label className="app-field__label">Rola</label>
+                <label className="app-field__label">{copy.role}</label>
                 <select
                   value={draft.role}
                   onChange={(event) =>
@@ -570,7 +816,7 @@ export default function UserPanelModern() {
                 </select>
               </div>
               <div className="app-field">
-                <label className="app-field__label">Status konta</label>
+                <label className="app-field__label">{copy.accountStatus}</label>
                 <select
                   value={draft.status}
                   onChange={(event) =>
@@ -579,75 +825,75 @@ export default function UserPanelModern() {
                 >
                   {STATUS_OPTIONS.map((status) => (
                     <option key={status} value={status}>
-                      {status === "active" ? "Aktywne" : "Nieaktywne"}
+                      {status === "active" ? copy.active : copy.inactive}
                     </option>
                   ))}
                 </select>
               </div>
               <Input
-                label="Numer operatora"
+                label={copy.operatorNumber}
                 value={draft.operatorNumber || ""}
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, operatorNumber: event.target.value }))
                 }
-                placeholder="Np. OP-014"
+                placeholder={copy.operatorNumberPlaceholder}
               />
               <div className="app-card" style={{ padding: 16 }}>
-                <div className="app-field__label">Ostatnie logowanie</div>
+                <div className="app-field__label">{copy.lastLoginCard}</div>
                 <div style={{ marginTop: 8, fontWeight: 700 }}>
-                  {formatLastLogin(selectedUser.last_sign_in_at)}
+                  {formatLastLogin(selectedUser.last_sign_in_at, locale, copy)}
                 </div>
                 <div className="helper-note" style={{ marginTop: 8 }}>
-                  Ta data pochodzi z warstwy logowania Supabase Auth.
+                  {copy.authSourceHint}
                 </div>
               </div>
               <div className="app-card" style={{ padding: 16 }}>
-                <div className="app-field__label">Ostatnia sesja</div>
+                <div className="app-field__label">{copy.lastSessionCard}</div>
                 <div style={{ marginTop: 8, fontWeight: 700 }}>
-                  {selectedUser.latest_session_status || "brak"}
+                  {selectedUser.latest_session_status || copy.none}
                 </div>
                 <div className="helper-note" style={{ marginTop: 8 }}>
-                  Status sesji pochodzi z ostatniej sesji z tabeli sessions.
+                  {copy.sessionsHint}
                 </div>
               </div>
               <Input
-                label="Nowe haslo"
+                label={copy.newPassword}
                 type="password"
                 value={passwordForm.newPassword}
                 onChange={(event) => setPasswordForm({ newPassword: event.target.value })}
-                placeholder="Wprowadz nowe haslo do resetu"
+                placeholder={copy.resetPasswordPlaceholder}
               />
             </div>
 
             <p className="helper-note" style={{ marginTop: 14 }}>
-              Zmiana roli, aktywacja, dezaktywacja, pseudonim i numer operatora sa przygotowane pod bezpieczny backend administracyjny.
+              {copy.editHint}
             </p>
             {!rpcAvailable || edgeAvailable === false ? (
               <p className="input-error-text" style={{ marginTop: 10 }}>
                 {!rpcAvailable
-                  ? "Edycja profilu jest chwilowo niedostepna, bo backend RPC nie odpowiedzial."
-                  : "Reset hasla i usuwanie sa chwilowo wylaczone, dopoki backend `admin-users` nie zostanie wdrozony."}
+                  ? copy.backendUnavailableRpc
+                  : copy.backendUnavailableEdge}
               </p>
             ) : null}
 
             <div className="process-actions" style={{ marginTop: 20 }}>
               <Button disabled={!rpcAvailable} loading={saving} onClick={handleSaveUser}>
                 <Shield size={16} />
-                Zapisz zmiany
+                {copy.saveChanges}
               </Button>
               <Button disabled={!rpcAvailable} variant="secondary" onClick={handleToggleStatus}>
-                {draft.status === "active" ? "Dezaktywuj konto" : "Aktywuj konto"}
+                {draft.status === "active" ? copy.deactivate : copy.activate}
               </Button>
             </div>
 
             <div className="process-actions" style={{ marginTop: 12 }}>
               <Button disabled={edgeAvailable === false} variant="secondary" loading={saving} onClick={handlePasswordReset}>
                 <KeyRound size={16} />
-                Reset hasla
+                {copy.resetPassword}
               </Button>
               <Button disabled={edgeAvailable === false} variant="secondary" loading={saving} onClick={handleDeleteUser}>
                 <Trash2 size={16} />
-                Usun uzytkownika
+                {copy.deleteUser}
               </Button>
             </div>
           </div>

@@ -90,7 +90,7 @@ async function fetchDashboardBaseRows(siteId = readActiveSiteId()) {
       .order("started_at", { ascending: false }),
       siteId
     ),
-    applySiteFilter(supabase.from("locations").select("code, zone"), siteId),
+    applySiteFilter(supabase.from("locations").select("code, zone, status"), siteId),
     fetchSiteScopedIssueRows(siteId),
     fetchPriceRows(siteId),
   ]);

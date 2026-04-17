@@ -130,6 +130,39 @@ export function buildDashboardData({
   const locationZoneMap = Object.fromEntries(
     (locations || []).map((row) => [String(row.code || "").trim(), String(row.zone || "").trim()])
   );
+  const zoneLocationStats = (locations || []).reduce((accumulator, row) => {
+    const zone = String(row.zone || "Nieprzypisana").trim() || "Nieprzypisana";
+    const status = String(row.status || "").trim().toLowerCase();
+
+    if (!accumulator.has(zone)) {
+      accumulator.set(zone, {
+        total_locations: 0,
+        done_locations: 0,
+        pending_locations: 0,
+        active_locations: 0,
+        other_locations: 0,
+      });
+    }
+
+    const bucket = accumulator.get(zone);
+    bucket.total_locations += 1;
+
+    if (status === "done") {
+      bucket.done_locations += 1;
+    } else if (status === "pending") {
+      bucket.pending_locations += 1;
+    } else if (status === "active") {
+      bucket.active_locations += 1;
+    } else {
+      bucket.other_locations += 1;
+    }
+
+    return accumulator;
+  }, new Map());
+  const totalLocationsAllZones = [...zoneLocationStats.values()].reduce(
+    (sum, row) => sum + row.total_locations,
+    0
+  );
 
   const filteredEntries = (entries || []).filter((entry) =>
     matchesPeriod(toDate(entry.timestamp || entry.created_at), year, month)
@@ -263,6 +296,13 @@ export function buildDashboardData({
 
   const zoneStats = [...zoneBucket.values()]
     .map((row) => ({
+      ...(zoneLocationStats.get(row.zone) || {
+        total_locations: 0,
+        done_locations: 0,
+        pending_locations: 0,
+        active_locations: 0,
+        other_locations: 0,
+      }),
       zone: row.zone,
       checked_locations: row._locations.size,
       operations_count: row.operations_count,
@@ -272,8 +312,37 @@ export function buildDashboardData({
       shortage_value: round(row.shortage_value),
       surplus_value: round(row.surplus_value),
       total_difference_value: round(row.shortage_value + row.surplus_value),
+      location_share: totalLocationsAllZones
+        ? round(((zoneLocationStats.get(row.zone)?.total_locations || 0) / totalLocationsAllZones) * 100, 2)
+        : 0,
     }))
     .sort((left, right) => left.zone.localeCompare(right.zone));
+
+  zoneLocationStats.forEach((stats, zone) => {
+    if (zoneStats.some((row) => row.zone === zone)) {
+      return;
+    }
+
+    zoneStats.push({
+      zone,
+      total_locations: stats.total_locations,
+      done_locations: stats.done_locations,
+      pending_locations: stats.pending_locations,
+      active_locations: stats.active_locations,
+      other_locations: stats.other_locations,
+      checked_locations: 0,
+      operations_count: 0,
+      shortages_count: 0,
+      surpluses_count: 0,
+      problems_count: 0,
+      shortage_value: 0,
+      surplus_value: 0,
+      total_difference_value: 0,
+      location_share: totalLocationsAllZones ? round((stats.total_locations / totalLocationsAllZones) * 100, 2) : 0,
+    });
+  });
+
+  zoneStats.sort((left, right) => left.zone.localeCompare(right.zone));
 
   return {
     summary: {

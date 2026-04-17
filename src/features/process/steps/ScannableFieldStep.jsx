@@ -1,5 +1,6 @@
 import { Camera } from "lucide-react";
 import React from "react";
+import { useAppPreferences } from "../../../core/preferences/AppPreferences";
 
 function ScannableFieldStep({
   title,
@@ -13,6 +14,13 @@ function ScannableFieldStep({
   onOpenScanner = null,
   helperText = "",
 }) {
+  const { language } = useAppPreferences();
+  const openScannerLabel = {
+    pl: `Otworz skaner dla pola ${title}`,
+    en: `Open scanner for ${title}`,
+    de: `Scanner fur Feld ${title} offnen`,
+  }[language];
+
   return (
     <div className="scan-panel">
       <div className="scan-panel__header">
@@ -35,7 +43,7 @@ function ScannableFieldStep({
             type="button"
             className="app-icon-button"
             onClick={onOpenScanner}
-            aria-label={`Otworz skaner dla pola ${title}`}
+            aria-label={openScannerLabel}
             style={{ minWidth: 46, alignSelf: "stretch" }}
           >
             <Camera size={18} />

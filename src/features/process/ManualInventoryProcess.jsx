@@ -6,6 +6,7 @@ import PageShell from "../../components/layout/PageShell";
 import BarcodeScannerModal from "../../components/scanner/BarcodeScannerModal";
 import Button from "../../components/ui/Button";
 import { useAuth } from "../../core/auth/AppAuth";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 import { useSession } from "../../core/session/AppSession";
 import {
   completeManualLocation,
@@ -32,12 +33,6 @@ import {
   getOrderedEnabledManualSteps,
 } from "../../core/config/manualProcessConfig";
 
-const PROBLEM_OPTIONS = [
-  "Towar uszkodzony",
-  "Problem z iloscia towaru",
-  "Brak identyfikacji towaru",
-];
-
 const INITIAL_FORM = {
   ean: "",
   sku: "",
@@ -55,11 +50,11 @@ function isValidIsoDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-function SummaryCard({ location, zone, savedCount, sessionZone }) {
+function SummaryCard({ location, zone, savedCount, sessionZone, copy }) {
   const rows = [
-    ["Lokalizacja", location?.code || "-"],
-    ["Strefa", location?.zone || zone || sessionZone || "-"],
-    ["Operacje w lokalizacji", String(savedCount || 0)],
+    [copy.currentLocationLabel, location?.code || "-"],
+    [copy.zoneLabel, location?.zone || zone || sessionZone || "-"],
+    [copy.operationsAtLocationLabel, String(savedCount || 0)],
   ];
 
   return (
@@ -69,8 +64,8 @@ function SummaryCard({ location, zone, savedCount, sessionZone }) {
           <Warehouse size={18} />
         </div>
         <div>
-          <h3 className="process-sidebar-card__title">Biezaca lokalizacja</h3>
-          <p className="process-panel__subtitle">Podglad aktywnego miejsca pracy i licznika zapisow.</p>
+          <h3 className="process-sidebar-card__title">{copy.currentLocationCardTitle}</h3>
+          <p className="process-panel__subtitle">{copy.currentLocationCardSubtitle}</p>
         </div>
       </div>
 
@@ -89,6 +84,7 @@ function SummaryCard({ location, zone, savedCount, sessionZone }) {
 export default function ManualInventoryProcess() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { language } = useAppPreferences();
   const { session, isActive, addOperation, endSession, pauseSession } = useSession();
   const [config, setConfig] = useState(null);
   const [stage, setStage] = useState("location");
@@ -117,6 +113,288 @@ export default function ManualInventoryProcess() {
 
   const validationConfig = config?.validation || {};
   const stepConfig = config?.steps || {};
+  const copy = useMemo(
+    () =>
+      ({
+        pl: {
+          problemOptions: ["Towar uszkodzony", "Problem z iloscia towaru", "Brak identyfikacji towaru"],
+          currentLocationLabel: "Lokalizacja",
+          zoneLabel: "Strefa",
+          operationsAtLocationLabel: "Operacje w lokalizacji",
+          currentLocationCardTitle: "Biezaca lokalizacja",
+          currentLocationCardSubtitle: "Podglad aktywnego miejsca pracy i licznika zapisow.",
+          eanLabel: "EAN",
+          skuLabel: "SKU",
+          lotLabel: "LOT",
+          expiryLabel: "Data waznosci",
+          typeLabel: "Typ",
+          quantityLabel: "Ilosc",
+          stageLocation: "Skan lokalizacji",
+          stageDetails: "Uzupelnianie operacji",
+          stageSummary: "Podsumowanie",
+          stageSaved: "Zapis zakonczony",
+          stageProblem: "Raport problemu",
+          stageDefault: "Proces reczny",
+          stageLocationNote: "Pracujesz teraz na lokalizacji {{code}}.",
+          stageFallbackNote: "Po wyborze lokalizacji tutaj zobaczysz jej kontekst.",
+          loadError: "Blad uruchamiania procesu recznego",
+          flushSent: "Wyslano z bufora {{count}} operacji.",
+          flushRestored: "Przywrocono polaczenie. Wyslano {{count}} operacji.",
+          timeWarning: "Przekroczono limit czasu kontroli tej lokalizacji.",
+          fetchLocationError: "Nie udalo sie pobrac lokalizacji",
+          missingLocation: "Brak aktywnej lokalizacji",
+          requiredSku: "SKU jest wymagane",
+          requiredEan: "EAN jest wymagany",
+          invalidEan: "Niepoprawny format EAN",
+          invalidSku: "Niepoprawny format SKU",
+          requiredLot: "LOT jest wymagany",
+          invalidLot: "Niepoprawny format LOT",
+          requiredExpiry: "Data waznosci jest wymagana",
+          invalidDate: "Niepoprawny format daty",
+          requiredType: "Wybierz typ operacji",
+          requiredQuantity: "Ilosc musi byc wieksza od zera",
+          quantityHardLimit: "Ilosc przekracza dopuszczalny limit",
+          quantityWarning: "Ilosc przekracza zalecany limit dla jednej operacji.",
+          stockWarning: "SKU nie wystepuje w stocku tej lokalizacji.",
+          summaryError: "Nie mozna przejsc dalej",
+          bufferedSave: "Brak polaczenia lub timeout API. Operacja trafila do lokalnego bufora.",
+          saveError: "Nie udalo sie zapisac operacji",
+          scannerEan: "Skanuj EAN",
+          scannerSku: "Skanuj SKU",
+          scannerLot: "Skanuj numer LOT",
+          finishLocationError: "Nie udalo sie zakonczyc lokalizacji",
+          releaseLocationError: "Nie udalo sie zwrocic lokalizacji do puli",
+          savedProblemMessage: "Problem zostal zapisany. Lokalizacja pozostaje zablokowana do czasu zwolnienia w panelu Problemy.",
+          saveProblemError: "Nie udalo sie zapisac problemu",
+          noSession: "Brak aktywnej sesji",
+          loadingProcess: "Ladowanie procesu recznego...",
+          title: "Reczna inwentaryzacja",
+          subtitle: "Proces recznej inwentaryzacji z wyraznym kontekstem sesji i spokojnym ukladem pracy.",
+          backLabel: "Zakoncz sesje i wyjdz",
+          chooseStartLocation: "Wybierz lokalizacje startowa",
+          chooseStartLocationDesc: "Zeskanuj lub wpisz lokalizacje, a potem przejdziemy do operacji w tej konkretnej pozycji.",
+          scanLocation: "Skanuj lokalizacje",
+          confirmLocation: "Potwierdz lokalizacje",
+          operationTitle: "Uzupelnij operacje dla lokalizacji",
+          operationDesc: "Pracuj krok po kroku i dopisz wszystkie potrzebne dane dla tej lokalizacji.",
+          summaryAction: "Podsumowanie",
+          changeLocation: "Zmien lokalizacje",
+          reportProblem: "Zglos problem",
+          reportProblemTitle: "Zglos problem dla lokalizacji",
+          reportProblemDesc: "Zapisz problem i zostaw lokalizacje zablokowana do dalszej obslugi w panelu danych.",
+          optionalProblemNote: "Opcjonalny komentarz do problemu",
+          problemCardDesc: "Zapisz problem i zablokuj lokalizacje do czasu zwolnienia w panelu danych.",
+          back: "Wroc",
+          summaryTitle: "Podsumowanie operacji",
+          summaryDesc: "Sprawdz wszystko jeszcze raz przed zapisem.",
+          saveOperation: "Zapisz operacje",
+          savedTitle: "Operacja zapisana",
+          savedDesc: "Mozesz dodac kolejny wpis albo zamknac aktualna lokalizacje i przejsc dalej.",
+          savedOperationsLabel: "Zapisane operacje",
+          addNextOperation: "Dodaj kolejna operacje",
+          finishLocation: "Zakoncz lokalizacje",
+          returnLocation: "Zwroc lokalizacje do puli",
+          processStateTitle: "Stan procesu",
+          processStateSubtitle: "Etap, kontekst sesji i aktualne priorytety operatora.",
+          currentDataTitle: "Biezace dane",
+          sessionControlTitle: "Sterowanie sesja",
+          pauseWork: "Wstrzymaj prace",
+          endSession: "Zakoncz sesje",
+          endSessionTitle: "Zakonczyc sesje recznej inwentaryzacji?",
+          endSessionDesc: "Biezaca lokalizacja zostanie zwrocona do puli, a operator wroci do menu glownego.",
+          cancel: "Anuluj",
+          endAndReturn: "Zakoncz sesje i wroc do menu",
+          stayInProcess: "Zostan w procesie",
+          scanDescription: "Zeskanuj kod aparatem telefonu albo wgraj zdjecie z aparatu. Po odczycie wartosc zostanie wpisana do pola procesu.",
+          overlay: "Aktualizuje lokalizacje i zapisuje operacje magazynowe...",
+        },
+        en: {
+          problemOptions: ["Damaged goods", "Quantity issue", "Product cannot be identified"],
+          currentLocationLabel: "Location",
+          zoneLabel: "Zone",
+          operationsAtLocationLabel: "Operations at location",
+          currentLocationCardTitle: "Current location",
+          currentLocationCardSubtitle: "Preview of the active work spot and saved operations counter.",
+          eanLabel: "EAN",
+          skuLabel: "SKU",
+          lotLabel: "LOT",
+          expiryLabel: "Expiry date",
+          typeLabel: "Type",
+          quantityLabel: "Quantity",
+          stageLocation: "Location scan",
+          stageDetails: "Operation details",
+          stageSummary: "Summary",
+          stageSaved: "Saved",
+          stageProblem: "Issue report",
+          stageDefault: "Manual process",
+          stageLocationNote: "You are currently working on location {{code}}.",
+          stageFallbackNote: "Once a location is selected, its context will appear here.",
+          loadError: "Could not start the manual process",
+          flushSent: "Sent {{count}} operations from the buffer.",
+          flushRestored: "Connection restored. Sent {{count}} operations.",
+          timeWarning: "The control time limit for this location has been exceeded.",
+          fetchLocationError: "Could not load the location",
+          missingLocation: "No active location",
+          requiredSku: "SKU is required",
+          requiredEan: "EAN is required",
+          invalidEan: "Invalid EAN format",
+          invalidSku: "Invalid SKU format",
+          requiredLot: "LOT is required",
+          invalidLot: "Invalid LOT format",
+          requiredExpiry: "Expiry date is required",
+          invalidDate: "Invalid date format",
+          requiredType: "Select operation type",
+          requiredQuantity: "Quantity must be greater than zero",
+          quantityHardLimit: "Quantity exceeds the allowed limit",
+          quantityWarning: "Quantity exceeds the recommended limit for a single operation.",
+          stockWarning: "SKU is not present in the stock of this location.",
+          summaryError: "Cannot continue",
+          bufferedSave: "No connection or API timeout. The operation was saved to the local buffer.",
+          saveError: "Could not save the operation",
+          scannerEan: "Scan EAN",
+          scannerSku: "Scan SKU",
+          scannerLot: "Scan LOT number",
+          finishLocationError: "Could not finish the location",
+          releaseLocationError: "Could not return the location to the pool",
+          savedProblemMessage: "The issue was saved. The location stays blocked until it is released in the Problems panel.",
+          saveProblemError: "Could not save the issue",
+          noSession: "No active session",
+          loadingProcess: "Loading manual process...",
+          title: "Manual inventory",
+          subtitle: "Manual inventory flow with clear session context and focused workspace layout.",
+          backLabel: "End session and leave",
+          chooseStartLocation: "Choose starting location",
+          chooseStartLocationDesc: "Scan or enter the location, then continue with operations for this exact position.",
+          scanLocation: "Scan location",
+          confirmLocation: "Confirm location",
+          operationTitle: "Fill in operation details",
+          operationDesc: "Work step by step and complete all required data for this location.",
+          summaryAction: "Summary",
+          changeLocation: "Change location",
+          reportProblem: "Report issue",
+          reportProblemTitle: "Report issue for location",
+          reportProblemDesc: "Save the issue and leave the location blocked for further handling in the data panel.",
+          optionalProblemNote: "Optional issue note",
+          problemCardDesc: "Save the issue and block the location until it is released in the data panel.",
+          back: "Back",
+          summaryTitle: "Operation summary",
+          summaryDesc: "Review everything once more before saving.",
+          saveOperation: "Save operation",
+          savedTitle: "Operation saved",
+          savedDesc: "You can add another entry or close the current location and move on.",
+          savedOperationsLabel: "Saved operations",
+          addNextOperation: "Add another operation",
+          finishLocation: "Finish location",
+          returnLocation: "Return location to pool",
+          processStateTitle: "Process status",
+          processStateSubtitle: "Stage, session context and current operator priorities.",
+          currentDataTitle: "Current data",
+          sessionControlTitle: "Session controls",
+          pauseWork: "Pause work",
+          endSession: "End session",
+          endSessionTitle: "End the manual inventory session?",
+          endSessionDesc: "The current location will be returned to the pool and the operator will go back to the main menu.",
+          cancel: "Cancel",
+          endAndReturn: "End session and return to menu",
+          stayInProcess: "Stay in process",
+          scanDescription: "Scan the code with the phone camera or upload a camera photo. The detected value will be written into the process field.",
+          overlay: "Updating locations and saving warehouse operations...",
+        },
+        de: {
+          problemOptions: ["Beschadigte Ware", "Mengenproblem", "Produkt nicht identifizierbar"],
+          currentLocationLabel: "Lokation",
+          zoneLabel: "Zone",
+          operationsAtLocationLabel: "Operationen an der Lokation",
+          currentLocationCardTitle: "Aktuelle Lokation",
+          currentLocationCardSubtitle: "Vorschau des aktiven Arbeitsplatzes und des Zaehlers gespeicherter Operationen.",
+          eanLabel: "EAN",
+          skuLabel: "SKU",
+          lotLabel: "LOT",
+          expiryLabel: "Verfallsdatum",
+          typeLabel: "Typ",
+          quantityLabel: "Menge",
+          stageLocation: "Lokationsscan",
+          stageDetails: "Operationsdaten",
+          stageSummary: "Zusammenfassung",
+          stageSaved: "Gespeichert",
+          stageProblem: "Problemmeldung",
+          stageDefault: "Manueller Prozess",
+          stageLocationNote: "Du arbeitest aktuell an Lokation {{code}}.",
+          stageFallbackNote: "Nach der Auswahl einer Lokation wird hier ihr Kontext angezeigt.",
+          loadError: "Der manuelle Prozess konnte nicht gestartet werden",
+          flushSent: "{{count}} Operationen aus dem Puffer wurden gesendet.",
+          flushRestored: "Verbindung wiederhergestellt. {{count}} Operationen gesendet.",
+          timeWarning: "Das Zeitlimit fur die Kontrolle dieser Lokation wurde uberschritten.",
+          fetchLocationError: "Lokation konnte nicht geladen werden",
+          missingLocation: "Keine aktive Lokation",
+          requiredSku: "SKU ist erforderlich",
+          requiredEan: "EAN ist erforderlich",
+          invalidEan: "Ungueltiges EAN-Format",
+          invalidSku: "Ungueltiges SKU-Format",
+          requiredLot: "LOT ist erforderlich",
+          invalidLot: "Ungueltiges LOT-Format",
+          requiredExpiry: "Verfallsdatum ist erforderlich",
+          invalidDate: "Ungueltiges Datumsformat",
+          requiredType: "Operationstyp auswahlen",
+          requiredQuantity: "Menge muss groesser als null sein",
+          quantityHardLimit: "Menge uberschreitet das erlaubte Limit",
+          quantityWarning: "Die Menge uberschreitet das empfohlene Limit fur eine einzelne Operation.",
+          stockWarning: "SKU ist im Bestand dieser Lokation nicht vorhanden.",
+          summaryError: "Fortfahren nicht moglich",
+          bufferedSave: "Keine Verbindung oder API-Timeout. Die Operation wurde im lokalen Puffer gespeichert.",
+          saveError: "Operation konnte nicht gespeichert werden",
+          scannerEan: "EAN scannen",
+          scannerSku: "SKU scannen",
+          scannerLot: "LOT-Nummer scannen",
+          finishLocationError: "Lokation konnte nicht abgeschlossen werden",
+          releaseLocationError: "Lokation konnte nicht in den Pool zuruckgegeben werden",
+          savedProblemMessage: "Das Problem wurde gespeichert. Die Lokation bleibt gesperrt, bis sie im Problem-Panel freigegeben wird.",
+          saveProblemError: "Problem konnte nicht gespeichert werden",
+          noSession: "Keine aktive Sitzung",
+          loadingProcess: "Manueller Prozess wird geladen...",
+          title: "Manuelle Inventur",
+          subtitle: "Manueller Inventurprozess mit klarem Sitzungsbezug und fokussiertem Arbeitslayout.",
+          backLabel: "Sitzung beenden und verlassen",
+          chooseStartLocation: "Startlokation wahlen",
+          chooseStartLocationDesc: "Scanne oder gib die Lokation ein und fahre dann mit den Operationen fur genau diese Position fort.",
+          scanLocation: "Lokation scannen",
+          confirmLocation: "Lokation bestatigen",
+          operationTitle: "Operationsdaten erfassen",
+          operationDesc: "Arbeite Schritt fur Schritt und ergaenze alle erforderlichen Daten fur diese Lokation.",
+          summaryAction: "Zusammenfassung",
+          changeLocation: "Lokation wechseln",
+          reportProblem: "Problem melden",
+          reportProblemTitle: "Problem fur Lokation melden",
+          reportProblemDesc: "Speichere das Problem und lasse die Lokation fur die weitere Bearbeitung im Datenbereich gesperrt.",
+          optionalProblemNote: "Optionaler Kommentar zum Problem",
+          problemCardDesc: "Speichere das Problem und sperre die Lokation, bis sie im Datenbereich freigegeben wird.",
+          back: "Zuruck",
+          summaryTitle: "Operationszusammenfassung",
+          summaryDesc: "Prufe alles noch einmal vor dem Speichern.",
+          saveOperation: "Operation speichern",
+          savedTitle: "Operation gespeichert",
+          savedDesc: "Du kannst einen weiteren Eintrag hinzufugen oder die aktuelle Lokation abschliessen und weitergehen.",
+          savedOperationsLabel: "Gespeicherte Operationen",
+          addNextOperation: "Weitere Operation hinzufugen",
+          finishLocation: "Lokation abschliessen",
+          returnLocation: "Lokation in Pool zuruckgeben",
+          processStateTitle: "Prozessstatus",
+          processStateSubtitle: "Schritt, Sitzungskontext und aktuelle Prioritaeten des Operators.",
+          currentDataTitle: "Aktuelle Daten",
+          sessionControlTitle: "Sitzungssteuerung",
+          pauseWork: "Arbeit pausieren",
+          endSession: "Sitzung beenden",
+          endSessionTitle: "Manuelle Inventursitzung beenden?",
+          endSessionDesc: "Die aktuelle Lokation wird in den Pool zuruckgegeben und der Operator kehrt ins Hauptmenu zuruck.",
+          cancel: "Abbrechen",
+          endAndReturn: "Sitzung beenden und zum Menu zuruck",
+          stayInProcess: "Im Prozess bleiben",
+          scanDescription: "Scanne den Code mit der Handykamera oder lade ein Foto hoch. Der erkannte Wert wird in das Prozessfeld ubernommen.",
+          overlay: "Lokationen werden aktualisiert und Lageroperationen gespeichert...",
+        },
+      })[language],
+    [language],
+  );
   const orderedSteps = useMemo(() => getOrderedEnabledManualSteps(config || { steps: {} }), [config]);
   const enabledOperationTypes = useMemo(() => {
     const types = config?.operationTypes || {};
@@ -128,34 +406,34 @@ export default function ManualInventoryProcess() {
   const summaryRows = useMemo(
     () =>
       [
-        stepConfig.location?.enabled !== false ? ["Lokalizacja", currentLocation?.code || "-"] : null,
-        currentLocation?.zone || currentZone ? ["Strefa", currentLocation?.zone || currentZone || "-"] : null,
-        stepConfig.ean?.enabled ? ["EAN", form.ean || "-"] : null,
-        stepConfig.sku?.enabled ? ["SKU", form.sku || "-"] : null,
-        stepConfig.lot?.enabled ? ["LOT", form.lot || "-"] : null,
-        stepConfig.expiry?.enabled ? ["Data waznosci", form.expiry || "-"] : null,
-        stepConfig.type?.enabled ? ["Typ", form.type || "-"] : null,
-        stepConfig.quantity?.enabled ? ["Ilosc", form.quantity || "-"] : null,
+        stepConfig.location?.enabled !== false ? [copy.currentLocationLabel, currentLocation?.code || "-"] : null,
+        currentLocation?.zone || currentZone ? [copy.zoneLabel, currentLocation?.zone || currentZone || "-"] : null,
+        stepConfig.ean?.enabled ? [copy.eanLabel, form.ean || "-"] : null,
+        stepConfig.sku?.enabled ? [copy.skuLabel, form.sku || "-"] : null,
+        stepConfig.lot?.enabled ? [copy.lotLabel, form.lot || "-"] : null,
+        stepConfig.expiry?.enabled ? [copy.expiryLabel, form.expiry || "-"] : null,
+        stepConfig.type?.enabled ? [copy.typeLabel, form.type || "-"] : null,
+        stepConfig.quantity?.enabled ? [copy.quantityLabel, form.quantity || "-"] : null,
       ].filter(Boolean),
-    [currentLocation?.code, currentLocation?.zone, currentZone, form, stepConfig]
+    [copy, currentLocation?.code, currentLocation?.zone, currentZone, form, stepConfig]
   );
 
   const processStageLabel = useMemo(() => {
     switch (stage) {
       case "location":
-        return "Skan lokalizacji";
+        return copy.stageLocation;
       case "details":
-        return "Uzupelnianie operacji";
+        return copy.stageDetails;
       case "summary":
-        return "Podsumowanie";
+        return copy.stageSummary;
       case "saved":
-        return "Zapis zakonczony";
+        return copy.stageSaved;
       case "problem":
-        return "Raport problemu";
+        return copy.stageProblem;
       default:
-        return "Proces reczny";
+        return copy.stageDefault;
     }
-  }, [stage]);
+  }, [copy, stage]);
 
   const processStageNote = useMemo(() => {
     if (stage === "location") {
@@ -163,11 +441,11 @@ export default function ManualInventoryProcess() {
     }
 
     if (currentLocation) {
-      return `Pracujesz teraz na lokalizacji ${currentLocation.code}.`;
+      return copy.stageLocationNote.replace("{{code}}", currentLocation.code);
     }
 
-    return "Po wyborze lokalizacji tutaj zobaczysz jej kontekst.";
-  }, [currentLocation, stage]);
+    return copy.stageFallbackNote;
+  }, [copy, currentLocation, stage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -187,11 +465,11 @@ export default function ManualInventoryProcess() {
         setConfig(nextConfig);
 
         if (flushResult.sent > 0) {
-          setBufferMessage(`Wyslano z bufora ${flushResult.sent} operacji.`);
+          setBufferMessage(copy.flushSent.replace("{{count}}", flushResult.sent));
         }
       } catch (initError) {
         if (!cancelled) {
-          setError(initError.message || "Blad uruchamiania procesu recznego");
+          setError(initError.message || copy.loadError);
           setConfig(DEFAULT_MANUAL_PROCESS_CONFIG);
         }
       } finally {
@@ -207,7 +485,7 @@ export default function ManualInventoryProcess() {
       const flushResult = await flushBufferedManualEntries();
 
       if (flushResult.sent > 0) {
-        setBufferMessage(`Przywrocono polaczenie. Wyslano ${flushResult.sent} operacji.`);
+        setBufferMessage(copy.flushRestored.replace("{{count}}", flushResult.sent));
       }
     };
 
@@ -217,7 +495,7 @@ export default function ManualInventoryProcess() {
       cancelled = true;
       window.removeEventListener("online", handleOnline);
     };
-  }, [user?.site_id]);
+  }, [copy.flushRestored, copy.flushSent, copy.loadError, user?.site_id]);
 
   useEffect(() => {
     return () => {
@@ -244,12 +522,12 @@ export default function ManualInventoryProcess() {
       const elapsed = Date.now() - startedAt;
 
       if (elapsed > validationConfig.locationTimeoutMs) {
-        setTimeWarning("Przekroczono limit czasu kontroli tej lokalizacji.");
+        setTimeWarning(copy.timeWarning);
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [currentLocation, validationConfig.locationTimeoutMs]);
+  }, [copy.timeWarning, currentLocation, validationConfig.locationTimeoutMs]);
 
   function setField(key, value) {
     setForm((current) => ({
@@ -363,7 +641,7 @@ export default function ManualInventoryProcess() {
       resetForm();
       setStage("details");
     } catch (locationError) {
-      setError(locationError.message || "Nie udalo sie pobrac lokalizacji");
+      setError(locationError.message || copy.fetchLocationError);
     } finally {
       setSubmitting(false);
     }
@@ -374,28 +652,28 @@ export default function ManualInventoryProcess() {
     const normalizedQuantity = Number(form.quantity);
 
     if (!currentLocation?.code) {
-      throw new Error("Brak aktywnej lokalizacji");
+      throw new Error(copy.missingLocation);
     }
 
     if (stepConfig.sku?.enabled && stepConfig.sku?.mandatory && !form.sku.trim()) {
-      throw new Error("SKU jest wymagane");
+      throw new Error(copy.requiredSku);
     }
 
     if (stepConfig.ean?.enabled && stepConfig.ean?.mandatory && !form.ean.trim()) {
-      throw new Error("EAN jest wymagany");
+      throw new Error(copy.requiredEan);
     }
 
     if (validationConfig.eanPattern && form.ean) {
       const eanRegex = new RegExp(validationConfig.eanPattern);
       if (!eanRegex.test(form.ean.trim())) {
-        throw new Error(validationConfig.eanMessage || "Niepoprawny format EAN");
+        throw new Error(validationConfig.eanMessage || copy.invalidEan);
       }
     }
 
     if (validationConfig.skuPattern && form.sku) {
       const skuRegex = new RegExp(validationConfig.skuPattern);
       if (!skuRegex.test(form.sku.trim())) {
-        throw new Error(validationConfig.skuMessage || "Niepoprawny format SKU");
+        throw new Error(validationConfig.skuMessage || copy.invalidSku);
       }
     }
 
@@ -408,35 +686,35 @@ export default function ManualInventoryProcess() {
     const lotRegex = new RegExp(validationConfig.lotPattern || "^[A-Za-z0-9._/-]{1,50}$");
 
     if (stepConfig.lot?.enabled && stepConfig.lot?.mandatory && !form.lot.trim()) {
-      throw new Error("LOT jest wymagany");
+      throw new Error(copy.requiredLot);
     }
 
     if (form.lot && !lotRegex.test(form.lot.trim())) {
-      throw new Error(validationConfig.lotMessage || "Niepoprawny format LOT");
+      throw new Error(validationConfig.lotMessage || copy.invalidLot);
     }
 
     if (stepConfig.expiry?.enabled && stepConfig.expiry?.mandatory && !form.expiry) {
-      throw new Error("Data waznosci jest wymagana");
+      throw new Error(copy.requiredExpiry);
     }
 
     if (form.expiry && !isValidIsoDate(form.expiry)) {
-      throw new Error("Niepoprawny format daty");
+      throw new Error(copy.invalidDate);
     }
 
     if (stepConfig.type?.enabled && stepConfig.type?.mandatory && !form.type) {
-      throw new Error("Wybierz typ operacji");
+      throw new Error(copy.requiredType);
     }
 
     if (stepConfig.quantity?.enabled && stepConfig.quantity?.mandatory && (!normalizedQuantity || normalizedQuantity <= 0)) {
-      throw new Error("Ilosc musi byc wieksza od zera");
+      throw new Error(copy.requiredQuantity);
     }
 
     if (Number(validationConfig.quantityHardLimit || 0) > 0 && normalizedQuantity > Number(validationConfig.quantityHardLimit)) {
-      throw new Error(validationConfig.quantityHardLimitMessage || "Ilosc przekracza dopuszczalny limit");
+      throw new Error(validationConfig.quantityHardLimitMessage || copy.quantityHardLimit);
     }
 
     if (normalizedQuantity > quantityWarningThreshold) {
-      nextWarnings.push("Ilosc przekracza zalecany limit dla jednej operacji.");
+      nextWarnings.push(copy.quantityWarning);
     }
 
     const stockMatch = locationStock.find(
@@ -450,7 +728,7 @@ export default function ManualInventoryProcess() {
     );
 
     if (!stockMatch) {
-      nextWarnings.push("SKU nie wystepuje w stocku tej lokalizacji.");
+      nextWarnings.push(copy.stockWarning);
     }
 
     setWarnings(nextWarnings);
@@ -468,7 +746,7 @@ export default function ManualInventoryProcess() {
       await validateOperation();
       setStage("summary");
     } catch (validationError) {
-      setError(validationError.message || "Nie mozna przejsc dalej");
+      setError(validationError.message || copy.summaryError);
     } finally {
       setSubmitting(false);
     }
@@ -507,7 +785,7 @@ export default function ManualInventoryProcess() {
       setSavedCountForLocation((current) => current + 1);
 
       if (result.status === "buffered") {
-        setBufferMessage("Brak polaczenia lub timeout API. Operacja trafila do lokalnego bufora.");
+        setBufferMessage(copy.bufferedSave);
       } else {
         setBufferMessage("");
       }
@@ -515,7 +793,7 @@ export default function ManualInventoryProcess() {
       resetForm();
       setStage("saved");
     } catch (saveError) {
-      setError(saveError.message || "Nie udalo sie zapisac operacji");
+      setError(saveError.message || copy.saveError);
     } finally {
       setSubmitting(false);
     }
@@ -531,7 +809,7 @@ export default function ManualInventoryProcess() {
             onChange={(value) => setField("ean", value)}
             error=""
             scannerEnabled={isScannerEnabledForField("ean")}
-            onOpenScanner={() => openScanner("ean", "Skanuj EAN")}
+            onOpenScanner={() => openScanner("ean", copy.scannerEan)}
           />
         );
       case "sku":
@@ -542,7 +820,7 @@ export default function ManualInventoryProcess() {
             onChange={(value) => setField("sku", value)}
             error=""
             scannerEnabled={isScannerEnabledForField("sku")}
-            onOpenScanner={() => openScanner("sku", "Skanuj SKU")}
+            onOpenScanner={() => openScanner("sku", copy.scannerSku)}
           />
         );
       case "lot":
@@ -553,7 +831,7 @@ export default function ManualInventoryProcess() {
             onChange={(value) => setField("lot", value)}
             error=""
             scannerEnabled={isScannerEnabledForField("lot")}
-            onOpenScanner={() => openScanner("lot", "Skanuj numer LOT")}
+            onOpenScanner={() => openScanner("lot", copy.scannerLot)}
           />
         );
       case "expiry":
@@ -615,7 +893,7 @@ export default function ManualInventoryProcess() {
       resetForm();
       setStage("location");
     } catch (finishError) {
-      setError(finishError.message || "Nie udalo sie zakonczyc lokalizacji");
+      setError(finishError.message || copy.finishLocationError);
     } finally {
       setSubmitting(false);
     }
@@ -649,7 +927,7 @@ export default function ManualInventoryProcess() {
       resetForm();
       setStage("location");
     } catch (releaseError) {
-      setError(releaseError.message || "Nie udalo sie zwrocic lokalizacji do puli");
+      setError(releaseError.message || copy.releaseLocationError);
     } finally {
       setSubmitting(false);
     }
@@ -683,9 +961,9 @@ export default function ManualInventoryProcess() {
       setTimeWarning("");
       resetForm();
       setStage("location");
-      setBufferMessage("Problem zostal zapisany. Lokalizacja pozostaje zablokowana do czasu zwolnienia w panelu Problemy.");
+      setBufferMessage(copy.savedProblemMessage);
     } catch (problemError) {
-      setError(problemError.message || "Nie udalo sie zapisac problemu");
+      setError(problemError.message || copy.saveProblemError);
     } finally {
       setSubmitting(false);
     }
@@ -730,20 +1008,20 @@ export default function ManualInventoryProcess() {
   }
 
   if (!session?.session_id || !isActive) {
-    return <div className="screen-title">Brak aktywnej sesji</div>;
+    return <div className="screen-title">{copy.noSession}</div>;
   }
 
   if (loading || !config) {
-    return <div className="screen-title">Ladowanie procesu recznego...</div>;
+    return <div className="screen-title">{copy.loadingProcess}</div>;
   }
 
   return (
     <PageShell
-      title="Reczna inwentaryzacja"
-      subtitle="Na telefonie proces zostaje prosty i pionowy, a na desktopie zamienia sie w spokojny panel roboczy z wyraznym kontekstem sesji obok."
+      title={copy.title}
+      subtitle={copy.subtitle}
       icon={<ScanSearch size={26} />}
       onBack={requestEndSession}
-      backLabel="Zakoncz sesje i wyjdz"
+      backLabel={copy.backLabel}
       actions={
         <div className="page-shell__pill">
           <ClipboardList size={14} />
@@ -771,8 +1049,8 @@ export default function ManualInventoryProcess() {
                   <ScanSearch size={22} />
                 </div>
                 <div className="process-stage-header__text">
-                  <h2>Wybierz lokalizacje startowa</h2>
-                  <p>Zeskanuj lub wpisz lokalizacje, a potem przejdziemy do operacji w tej konkretnej pozycji.</p>
+                  <h2>{copy.chooseStartLocation}</h2>
+                  <p>{copy.chooseStartLocationDesc}</p>
                 </div>
               </div>
 
@@ -781,12 +1059,12 @@ export default function ManualInventoryProcess() {
                 onChange={setLocationInput}
                 error=""
                 scannerEnabled={isScannerEnabledForField("location")}
-                onOpenScanner={() => openScanner("location", "Skanuj lokalizacje")}
+                onOpenScanner={() => openScanner("location", copy.scanLocation)}
               />
 
               <div className="process-actions process-actions--tight">
                 <Button size="lg" loading={submitting} onClick={handleLocationConfirm}>
-                  Potwierdz lokalizacje
+                  {copy.confirmLocation}
                 </Button>
               </div>
             </div>
@@ -799,8 +1077,8 @@ export default function ManualInventoryProcess() {
                   <ClipboardList size={22} />
                 </div>
                 <div className="process-stage-header__text">
-                  <h2>Uzupelnij operacje dla lokalizacji</h2>
-                  <p>Pracuj krok po kroku. Na desktopie pola sa skupione w panelu roboczym, bez rozciagania na caly ekran.</p>
+                  <h2>{copy.operationTitle}</h2>
+                  <p>{copy.operationDesc}</p>
                 </div>
               </div>
 
@@ -812,10 +1090,10 @@ export default function ManualInventoryProcess() {
 
               <div className="process-actions">
                 <Button size="lg" loading={submitting} onClick={handleSummary}>
-                  Podsumowanie
+                  {copy.summaryAction}
                 </Button>
                 <Button variant="secondary" size="lg" disabled={submitting} onClick={handleAbandonLocation}>
-                  Zmien lokalizacje
+                  {copy.changeLocation}
                 </Button>
                 <Button
                   variant="secondary"
@@ -827,7 +1105,7 @@ export default function ManualInventoryProcess() {
                     setStage("problem");
                   }}
                 >
-                  Zglos problem
+                  {copy.reportProblem}
                 </Button>
               </div>
             </div>
@@ -840,8 +1118,8 @@ export default function ManualInventoryProcess() {
                   <ShieldAlert size={22} />
                 </div>
                 <div className="process-stage-header__text">
-                  <h2>Zglos problem dla lokalizacji</h2>
-                  <p>Zapisz problem i zostaw lokalizacje zablokowana do dalszej obslugi w panelu danych.</p>
+                  <h2>{copy.reportProblemTitle}</h2>
+                  <p>{copy.reportProblemDesc}</p>
                 </div>
               </div>
 
@@ -858,14 +1136,14 @@ export default function ManualInventoryProcess() {
 
               <textarea
                 className="input"
-                placeholder="Opcjonalny komentarz do problemu"
+                placeholder={copy.optionalProblemNote}
                 value={problemNote}
                 onChange={(event) => setProblemNote(event.target.value)}
                 style={{ minHeight: 120 }}
               />
 
               <div className="process-choice-grid">
-                {PROBLEM_OPTIONS.map((option) => (
+                {copy.problemOptions.map((option) => (
                   <button
                     key={option}
                     type="button"
@@ -875,7 +1153,7 @@ export default function ManualInventoryProcess() {
                   >
                     <div className="process-choice-card__title">{option}</div>
                     <div className="process-choice-card__desc">
-                      Zapisz problem i zablokuj lokalizacje do czasu zwolnienia w panelu danych.
+                      {copy.problemCardDesc}
                     </div>
                   </button>
                 ))}
@@ -883,7 +1161,7 @@ export default function ManualInventoryProcess() {
 
               <div className="process-actions process-actions--tight">
                 <Button variant="secondary" size="lg" disabled={submitting} onClick={() => setStage("details")}>
-                  Wroc
+                  {copy.back}
                 </Button>
               </div>
             </div>
@@ -896,8 +1174,8 @@ export default function ManualInventoryProcess() {
                   <ClipboardList size={22} />
                 </div>
                 <div className="process-stage-header__text">
-                  <h2>Podsumowanie operacji</h2>
-                  <p>Sprawdz wszystko jeszcze raz przed zapisem. Uklad zostaje zwarty i czytelny takze na szerokim ekranie.</p>
+                  <h2>{copy.summaryTitle}</h2>
+                  <p>{copy.summaryDesc}</p>
                 </div>
               </div>
 
@@ -912,10 +1190,10 @@ export default function ManualInventoryProcess() {
 
               <div className="process-actions">
                 <Button size="lg" loading={submitting} onClick={handleSave}>
-                  Zapisz operacje
+                  {copy.saveOperation}
                 </Button>
                 <Button variant="secondary" size="lg" disabled={submitting} onClick={() => setStage("details")}>
-                  Wroc
+                  {copy.back}
                 </Button>
               </div>
             </div>
@@ -928,31 +1206,31 @@ export default function ManualInventoryProcess() {
                   <ClipboardList size={22} />
                 </div>
                 <div className="process-stage-header__text">
-                  <h2>Operacja zapisana</h2>
-                  <p>Mozesz dodac kolejny wpis albo zamknac aktualna lokalizacje i przejsc dalej.</p>
+                  <h2>{copy.savedTitle}</h2>
+                  <p>{copy.savedDesc}</p>
                 </div>
               </div>
 
               <div className="process-meta-grid">
                 <div className="process-meta-item">
-                  <div className="process-meta-item__label">Lokalizacja</div>
+                  <div className="process-meta-item__label">{copy.currentLocationLabel}</div>
                   <div className="process-meta-item__value">{currentLocation?.code || "-"}</div>
                 </div>
                 <div className="process-meta-item">
-                  <div className="process-meta-item__label">Zapisane operacje</div>
+                  <div className="process-meta-item__label">{copy.savedOperationsLabel}</div>
                   <div className="process-meta-item__value">{savedCountForLocation}</div>
                 </div>
               </div>
 
               <div className="process-actions">
                 <Button size="lg" disabled={submitting} onClick={() => setStage("details")}>
-                  Dodaj kolejna operacje
+                  {copy.addNextOperation}
                 </Button>
                 <Button variant="secondary" size="lg" disabled={submitting} onClick={handleFinishLocation}>
-                  Zakoncz lokalizacje
+                  {copy.finishLocation}
                 </Button>
                 <Button variant="secondary" size="lg" disabled={submitting} onClick={handleAbandonLocation}>
-                  Zwroc lokalizacje do puli
+                  {copy.returnLocation}
                 </Button>
               </div>
             </div>
@@ -966,8 +1244,8 @@ export default function ManualInventoryProcess() {
                 <ClipboardList size={18} />
               </div>
               <div>
-                <h3 className="process-sidebar-card__title">Stan procesu</h3>
-                <p className="process-panel__subtitle">Etap, kontekst sesji i aktualne priorytety operatora.</p>
+                <h3 className="process-sidebar-card__title">{copy.processStateTitle}</h3>
+                <p className="process-panel__subtitle">{copy.processStateSubtitle}</p>
               </div>
             </div>
 
@@ -981,6 +1259,7 @@ export default function ManualInventoryProcess() {
               zone={currentZone}
               sessionZone={sessionZone}
               savedCount={savedCountForLocation}
+              copy={copy}
             />
           ) : null}
 
@@ -991,7 +1270,7 @@ export default function ManualInventoryProcess() {
                   <ClipboardList size={18} />
                 </div>
               <div>
-                <h3 className="process-sidebar-card__title">Biezace dane</h3>
+                <h3 className="process-sidebar-card__title">{copy.currentDataTitle}</h3>
               </div>
             </div>
 
@@ -1012,17 +1291,17 @@ export default function ManualInventoryProcess() {
                 <AlertTriangle size={18} />
               </div>
               <div>
-                <h3 className="process-sidebar-card__title">Sterowanie sesja</h3>
+                <h3 className="process-sidebar-card__title">{copy.sessionControlTitle}</h3>
               </div>
             </div>
 
             <div className="process-actions process-actions--stack">
               <Button variant="secondary" size="lg" disabled={submitting} onClick={handlePauseSession}>
                 <PauseCircle size={16} />
-                Wstrzymaj prace
+                {copy.pauseWork}
               </Button>
               <Button variant="secondary" size="lg" disabled={submitting} onClick={requestEndSession}>
-                Zakoncz sesje
+                {copy.endSession}
               </Button>
             </div>
           </div>
@@ -1035,38 +1314,38 @@ export default function ManualInventoryProcess() {
             <div className="history-modal__header">
               <div>
                 <h2 className="process-panel__title" style={{ fontSize: 26, margin: 0 }}>
-                  Zakonczyc sesje recznej inwentaryzacji?
+                  {copy.endSessionTitle}
                 </h2>
                 <p className="process-panel__subtitle">
-                  Biezaca lokalizacja zostanie zwrocona do puli, a operator wroci do menu glownego.
+                  {copy.endSessionDesc}
                 </p>
               </div>
               <Button variant="secondary" onClick={closeEndSessionModal}>
-                Anuluj
+                {copy.cancel}
               </Button>
             </div>
 
             <div className="process-meta-grid" style={{ marginBottom: 18 }}>
               <div className="process-meta-item">
-                <div className="process-meta-item__label">Lokalizacja</div>
+                <div className="process-meta-item__label">{copy.currentLocationLabel}</div>
                 <div className="process-meta-item__value">{currentLocation?.code || "-"}</div>
               </div>
               <div className="process-meta-item">
-                <div className="process-meta-item__label">Strefa</div>
+                <div className="process-meta-item__label">{copy.zoneLabel}</div>
                 <div className="process-meta-item__value">{currentLocation?.zone || currentZone || sessionZone || "-"}</div>
               </div>
               <div className="process-meta-item">
-                <div className="process-meta-item__label">Zapisane operacje</div>
+                <div className="process-meta-item__label">{copy.savedOperationsLabel}</div>
                 <div className="process-meta-item__value">{savedCountForLocation}</div>
               </div>
             </div>
 
             <div className="process-actions">
               <Button size="lg" loading={submitting} onClick={confirmEndSession}>
-                Zakoncz sesje i wroc do menu
+                {copy.endAndReturn}
               </Button>
               <Button variant="secondary" size="lg" disabled={submitting} onClick={closeEndSessionModal}>
-                Zostan w procesie
+                {copy.stayInProcess}
               </Button>
             </div>
           </div>
@@ -1076,7 +1355,7 @@ export default function ManualInventoryProcess() {
       <BarcodeScannerModal
         open={scannerModal.open}
         title={scannerModal.title}
-        description="Zeskanuj kod aparatem telefonu albo wgraj zdjecie z aparatu. Po odczycie wartosc zostanie wpisana do pola procesu."
+        description={copy.scanDescription}
         formats={scannerModal.fieldKey ? getScanFieldConfig(scannerModal.fieldKey)?.formats || [] : []}
         preferBackCamera={Boolean(scanningConfig.preferBackCamera)}
         autoCloseOnSuccess={Boolean(scanningConfig.autoCloseOnSuccess)}
@@ -1086,7 +1365,7 @@ export default function ManualInventoryProcess() {
       <LoadingOverlay
         open={submitting}
         fullscreen
-        message="Aktualizuje lokalizacje i zapisuje operacje magazynowe..."
+        message={copy.overlay}
       />
     </PageShell>
   );

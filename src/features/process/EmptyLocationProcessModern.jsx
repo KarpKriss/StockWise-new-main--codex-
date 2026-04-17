@@ -26,6 +26,7 @@ import PageShell from "../../components/layout/PageShell";
 import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import Button from "../../components/ui/Button";
 import BarcodeScannerModal from "../../components/scanner/BarcodeScannerModal";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 import EanStepModern from "./steps/EanStepModern";
 import SkuStepModern from "./steps/SkuStepModern";
 import LotStepModern from "./steps/LotStepModern";
@@ -33,37 +34,19 @@ import QuantityStepModern from "./steps/QuantityStepModern";
 import { DEFAULT_MANUAL_PROCESS_CONFIG } from "../../core/config/manualProcessConfig";
 import { fetchManualProcessConfig } from "../../core/api/manualProcessApi";
 
-const PROBLEM_OPTIONS = [
-  {
-    value: "Towar uszkodzony",
-    title: "Towar uszkodzony",
-    description: "Zglos uszkodzenie produktu lub opakowania.",
-  },
-  {
-    value: "Problem z iloscia towaru",
-    title: "Problem z iloscia",
-    description: "Towar jest obecny, ale ilosc budzi watpliwosci.",
-  },
-  {
-    value: "Brak identyfikacji towaru",
-    title: "Brak identyfikacji",
-    description: "Nie da sie jednoznacznie rozpoznac produktu.",
-  },
-];
-
-function SummaryCard({ zone, progress, location }) {
+function SummaryCard({ zone, progress, location, copy }) {
   return (
     <div className="process-summary-card">
       <div className="process-summary-item">
-        <div className="process-summary-item__label">Strefa</div>
+        <div className="process-summary-item__label">{copy.zoneLabel}</div>
         <div className="process-summary-item__value">{zone || "-"}</div>
       </div>
       <div className="process-summary-item">
-        <div className="process-summary-item__label">Postep</div>
+        <div className="process-summary-item__label">{copy.progressLabel}</div>
         <div className="process-summary-item__value">{progress}</div>
       </div>
       <div className="process-summary-item">
-        <div className="process-summary-item__label">Aktualna lokalizacja</div>
+        <div className="process-summary-item__label">{copy.currentLocationLabel}</div>
         <div className="process-summary-item__value">{location || "-"}</div>
       </div>
     </div>
@@ -123,6 +106,7 @@ export default function EmptyLocationProcessModern() {
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const { user } = useAuth();
+  const { language } = useAppPreferences();
   const { session, isActive, addOperation, endSession } = useSession();
   const [zones, setZones] = useState([]);
   const [completedZones, setCompletedZones] = useState([]);
@@ -156,6 +140,216 @@ export default function EmptyLocationProcessModern() {
   const decisionInputRef = useRef(null);
 
   const currentLocation = queue[currentIndex] || null;
+  const copy = useMemo(
+    () =>
+      ({
+        pl: {
+          problemOptions: [
+            { value: "Towar uszkodzony", title: "Towar uszkodzony", description: "Zglos uszkodzenie produktu lub opakowania." },
+            { value: "Problem z iloscia towaru", title: "Problem z iloscia", description: "Towar jest obecny, ale ilosc budzi watpliwosci." },
+            { value: "Brak identyfikacji towaru", title: "Brak identyfikacji", description: "Nie da sie jednoznacznie rozpoznac produktu." },
+          ],
+          zoneLabel: "Strefa",
+          progressLabel: "Postep",
+          currentLocationLabel: "Aktualna lokalizacja",
+          loadZonesError: "Blad pobierania stref",
+          quickStartError: "Nie udalo sie uruchomic szybkiego startu.",
+          beginZoneError: "Nie udalo sie uruchomic strefy",
+          closeProcessError: "Nie udalo sie zamknac procesu.",
+          scanLocationFirst: "Najpierw zeskanuj albo wpisz lokalizacje.",
+          scanMismatch: "Skan nie zgadza sie z aktualna lokalizacja.",
+          quickConfirmScan: "Zeskanuj albo wpisz aktualna lokalizacje, aby szybko potwierdzic pusty adres.",
+          confirmEmptyError: "Nie udalo sie potwierdzic pustej lokalizacji.",
+          saveProblemError: "Nie udalo sie zapisac problemu.",
+          missingSkuOrEan: "Podaj SKU albo EAN.",
+          invalidQuantity: "Ilosc musi byc wieksza od zera.",
+          unknownProduct: "Nie znaleziono SKU lub EAN w kartotece produktow.",
+          saveSurplusError: "Nie udalo sie zapisac nadwyzki.",
+          noSessionTitle: "Brak aktywnej sesji",
+          noSessionSubtitle: "Uruchom proces z menu, aby rozpoczac kontrole pustych lokalizacji.",
+          title: "Inwentaryzacja pustych lokalizacji",
+          subtitle: "Sprawdzaj lokalizacje jedna po drugiej, potwierdzaj puste miejsca i raportuj wyjatki bez opuszczania flow.",
+          backLabel: "Powrot do wyboru procesu",
+          quickStartActive: "Szybki start aktywny",
+          quickStartText: "Start od lokalizacji {{location}} w strefie {{zone}}. Kolejnosc zostala ustawiona {{direction}}.",
+          loadingZones: "Ladowanie stref...",
+          chooseZone: "Wybierz strefe startowa",
+          chooseZoneDesc: "Strefy sa pokazywane jako wygodne kafle, a po ukonczeniu znikaja z listy.",
+          noZones: "Brak kolejnych stref z aktywnymi lokalizacjami do sprawdzenia.",
+          finishAndBack: "Zakoncz i wroc do wyboru procesu",
+          confirmLocationTitle: "Potwierdz lokalizacje",
+          confirmLocationDesc: "Zeskanuj kod lub wpisz go recznie, aby przejsc dalej.",
+          scanLocation: "Skanuj lokalizacje",
+          openLocationScanner: "Otworz skaner lokalizacji",
+          locationPlaceholder: "Zeskanuj lub wpisz kod lokalizacji",
+          confirmScan: "Potwierdz skan",
+          emptyQuestion: "Czy lokalizacja jest pusta?",
+          emptyQuestionDesc: "Wybierz dalszy krok dla aktualnej lokalizacji w strefie {{zone}}.",
+          quickConfirm: "Szybkie potwierdzenie skanem",
+          quickConfirmPlaceholder: "Zeskanuj aktualna lokalizacje i zatwierdz Enterem",
+          openDecisionScanner: "Otworz skaner potwierdzenia lokalizacji",
+          yesEmpty: "Tak, jest pusta",
+          yesEmptyDesc: "Zapisz lokalizacje jako sprawdzona i przejdz do kolejnej.",
+          addGoods: "Dodaj towar",
+          addGoodsDesc: "Zarejestruj znaleziona nadwyzke z poziomu tej lokalizacji.",
+          reportProblem: "Zglos problem",
+          reportProblemDesc: "Dodaj problem operacyjny lub identyfikacyjny bez przerywania pracy.",
+          issueTitle: "Wybierz typ problemu",
+          issueDesc: "Opis zostanie zapisany razem z lokalizacja i aktualnym operatorem.",
+          issueNotePlaceholder: "Opcjonalny komentarz do problemu",
+          back: "Wroc",
+          surplusTitle: "Dodaj towar dla {{location}}",
+          surplusDesc: "Uzupelnij dane produktu i zapisz nadwyzke bez opuszczania procesu.",
+          scanEan: "Skanuj EAN produktu",
+          scanSku: "Skanuj SKU produktu",
+          scanLot: "Skanuj numer LOT",
+          saveGoods: "Zapisz towar",
+          zoneFinished: "Strefa zakonczona",
+          zoneFinishedDesc: "Ta czesc magazynu zostala juz obsluzona i jest gotowa do zamkniecia.",
+          checkedLocations: "Sprawdzone lokalizacje",
+          startNextZone: "Rozpocznij nastepna strefe",
+          scannerDescription: "Skieruj aparat na kod albo wgraj zdjecie. Odczyt trafia bezposrednio do aktualnego pola procesu pustych lokalizacji.",
+          overlay: "Przetwarzam lokalizacje i zapisuje postep kontroli...",
+        },
+        en: {
+          problemOptions: [
+            { value: "Damaged goods", title: "Damaged goods", description: "Report damaged product or packaging." },
+            { value: "Quantity issue", title: "Quantity issue", description: "The product is present, but the quantity is questionable." },
+            { value: "Product cannot be identified", title: "No identification", description: "The product cannot be identified unambiguously." },
+          ],
+          zoneLabel: "Zone",
+          progressLabel: "Progress",
+          currentLocationLabel: "Current location",
+          loadZonesError: "Could not load zones",
+          quickStartError: "Could not start quick start.",
+          beginZoneError: "Could not start the zone",
+          closeProcessError: "Could not close the process.",
+          scanLocationFirst: "Scan or enter the location first.",
+          scanMismatch: "The scan does not match the current location.",
+          quickConfirmScan: "Scan or enter the current location to confirm the empty address quickly.",
+          confirmEmptyError: "Could not confirm the empty location.",
+          saveProblemError: "Could not save the issue.",
+          missingSkuOrEan: "Enter SKU or EAN.",
+          invalidQuantity: "Quantity must be greater than zero.",
+          unknownProduct: "SKU or EAN could not be found in the product catalog.",
+          saveSurplusError: "Could not save the surplus.",
+          noSessionTitle: "No active session",
+          noSessionSubtitle: "Start the process from the menu to begin checking empty locations.",
+          title: "Empty location inventory",
+          subtitle: "Check locations one by one, confirm empty spaces and report exceptions without leaving the flow.",
+          backLabel: "Back to process selection",
+          quickStartActive: "Quick start active",
+          quickStartText: "Started from location {{location}} in zone {{zone}}. The order was set {{direction}}.",
+          loadingZones: "Loading zones...",
+          chooseZone: "Choose starting zone",
+          chooseZoneDesc: "Zones are shown as convenient tiles and disappear from the list once completed.",
+          noZones: "There are no more zones with active locations to check.",
+          finishAndBack: "Finish and return to process selection",
+          confirmLocationTitle: "Confirm location",
+          confirmLocationDesc: "Scan the code or enter it manually to continue.",
+          scanLocation: "Scan location",
+          openLocationScanner: "Open location scanner",
+          locationPlaceholder: "Scan or enter location code",
+          confirmScan: "Confirm scan",
+          emptyQuestion: "Is the location empty?",
+          emptyQuestionDesc: "Choose the next step for the current location in zone {{zone}}.",
+          quickConfirm: "Quick confirmation by scan",
+          quickConfirmPlaceholder: "Scan the current location and confirm with Enter",
+          openDecisionScanner: "Open location confirmation scanner",
+          yesEmpty: "Yes, it is empty",
+          yesEmptyDesc: "Save the location as checked and move to the next one.",
+          addGoods: "Add goods",
+          addGoodsDesc: "Register the found surplus from this location.",
+          reportProblem: "Report issue",
+          reportProblemDesc: "Add an operational or identification issue without breaking the flow.",
+          issueTitle: "Choose issue type",
+          issueDesc: "The description will be saved together with the location and current operator.",
+          issueNotePlaceholder: "Optional issue note",
+          back: "Back",
+          surplusTitle: "Add goods for {{location}}",
+          surplusDesc: "Fill in product data and save the surplus without leaving the process.",
+          scanEan: "Scan product EAN",
+          scanSku: "Scan product SKU",
+          scanLot: "Scan LOT number",
+          saveGoods: "Save goods",
+          zoneFinished: "Zone completed",
+          zoneFinishedDesc: "This part of the warehouse has already been handled and is ready to be closed.",
+          checkedLocations: "Checked locations",
+          startNextZone: "Start next zone",
+          scannerDescription: "Point the camera at the code or upload a photo. The result goes directly into the current empty-location process field.",
+          overlay: "Processing locations and saving control progress...",
+        },
+        de: {
+          problemOptions: [
+            { value: "Beschadigte Ware", title: "Beschadigte Ware", description: "Beschadigtes Produkt oder Verpackung melden." },
+            { value: "Mengenproblem", title: "Mengenproblem", description: "Die Ware ist vorhanden, aber die Menge ist fraglich." },
+            { value: "Produkt nicht identifizierbar", title: "Keine Identifikation", description: "Das Produkt kann nicht eindeutig erkannt werden." },
+          ],
+          zoneLabel: "Zone",
+          progressLabel: "Fortschritt",
+          currentLocationLabel: "Aktuelle Lokation",
+          loadZonesError: "Zonen konnten nicht geladen werden",
+          quickStartError: "Schnellstart konnte nicht gestartet werden.",
+          beginZoneError: "Zone konnte nicht gestartet werden",
+          closeProcessError: "Der Prozess konnte nicht beendet werden.",
+          scanLocationFirst: "Scanne oder gib zuerst die Lokation ein.",
+          scanMismatch: "Der Scan stimmt nicht mit der aktuellen Lokation uberein.",
+          quickConfirmScan: "Scanne oder gib die aktuelle Lokation ein, um die leere Adresse schnell zu bestaetigen.",
+          confirmEmptyError: "Leere Lokation konnte nicht bestaetigt werden.",
+          saveProblemError: "Problem konnte nicht gespeichert werden.",
+          missingSkuOrEan: "SKU oder EAN eingeben.",
+          invalidQuantity: "Menge muss groesser als null sein.",
+          unknownProduct: "SKU oder EAN wurde im Produktkatalog nicht gefunden.",
+          saveSurplusError: "Mehrmenge konnte nicht gespeichert werden.",
+          noSessionTitle: "Keine aktive Sitzung",
+          noSessionSubtitle: "Starte den Prozess aus dem Menu, um die Kontrolle leerer Lokationen zu beginnen.",
+          title: "Inventur leerer Lokationen",
+          subtitle: "Prufe Lokationen nacheinander, bestaetige leere Plaetze und melde Ausnahmen, ohne den Flow zu verlassen.",
+          backLabel: "Zuruck zur Prozessauswahl",
+          quickStartActive: "Schnellstart aktiv",
+          quickStartText: "Start an Lokation {{location}} in Zone {{zone}}. Die Reihenfolge wurde {{direction}} gesetzt.",
+          loadingZones: "Zonen werden geladen...",
+          chooseZone: "Startzone wahlen",
+          chooseZoneDesc: "Zonen werden als praktische Kacheln angezeigt und verschwinden nach Abschluss aus der Liste.",
+          noZones: "Es gibt keine weiteren Zonen mit aktiven Lokationen zur Prufung.",
+          finishAndBack: "Beenden und zur Prozessauswahl zuruck",
+          confirmLocationTitle: "Lokation bestaetigen",
+          confirmLocationDesc: "Scanne den Code oder gib ihn manuell ein, um fortzufahren.",
+          scanLocation: "Lokation scannen",
+          openLocationScanner: "Lokationsscanner offnen",
+          locationPlaceholder: "Lokationscode scannen oder eingeben",
+          confirmScan: "Scan bestaetigen",
+          emptyQuestion: "Ist die Lokation leer?",
+          emptyQuestionDesc: "Waehle den naechsten Schritt fur die aktuelle Lokation in Zone {{zone}}.",
+          quickConfirm: "Schnellbestaetigung per Scan",
+          quickConfirmPlaceholder: "Aktuelle Lokation scannen und mit Enter bestaetigen",
+          openDecisionScanner: "Scanner fur Lokationsbestaetigung offnen",
+          yesEmpty: "Ja, sie ist leer",
+          yesEmptyDesc: "Lokation als gepruft speichern und zur naechsten wechseln.",
+          addGoods: "Ware hinzufugen",
+          addGoodsDesc: "Gefundene Mehrmenge direkt aus dieser Lokation erfassen.",
+          reportProblem: "Problem melden",
+          reportProblemDesc: "Operatives oder Identifikationsproblem melden, ohne den Flow zu unterbrechen.",
+          issueTitle: "Problemtyp waehlen",
+          issueDesc: "Die Beschreibung wird zusammen mit Lokation und aktuellem Operator gespeichert.",
+          issueNotePlaceholder: "Optionaler Kommentar zum Problem",
+          back: "Zuruck",
+          surplusTitle: "Ware fur {{location}} hinzufugen",
+          surplusDesc: "Produktdaten ergaenzen und Mehrmenge speichern, ohne den Prozess zu verlassen.",
+          scanEan: "Produkt-EAN scannen",
+          scanSku: "Produkt-SKU scannen",
+          scanLot: "LOT-Nummer scannen",
+          saveGoods: "Ware speichern",
+          zoneFinished: "Zone abgeschlossen",
+          zoneFinishedDesc: "Dieser Teil des Lagers wurde bereits bearbeitet und ist bereit fur den Abschluss.",
+          checkedLocations: "Geprufte Lokationen",
+          startNextZone: "Naechste Zone starten",
+          scannerDescription: "Richte die Kamera auf den Code oder lade ein Foto hoch. Das Ergebnis wird direkt in das aktuelle Feld des Leerplatz-Prozesses geschrieben.",
+          overlay: "Lokationen werden verarbeitet und der Kontrollfortschritt gespeichert...",
+        },
+      })[language],
+    [language],
+  );
   const totalLocations = totalCount || queue.length;
   const availableZones = useMemo(
     () => zones.filter((zone) => !completedZones.includes(zone)),
@@ -193,7 +387,7 @@ export default function EmptyLocationProcessModern() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err.message || "Blad pobierania stref");
+          setError(err.message || copy.loadZonesError);
         }
       } finally {
         if (!cancelled) {
@@ -207,7 +401,7 @@ export default function EmptyLocationProcessModern() {
     return () => {
       cancelled = true;
     };
-  }, [user?.site_id]);
+  }, [copy.loadZonesError, user?.site_id]);
 
   useEffect(() => {
     const quickStartCode = routerLocation.state?.quickStartCode;
@@ -254,14 +448,14 @@ export default function EmptyLocationProcessModern() {
           await activateLocation(reordered.locations[0]);
         }
       } catch (err) {
-        setError(err.message || "Nie udalo sie uruchomic szybkiego startu.");
+        setError(err.message || copy.quickStartError);
       } finally {
         setSubmitting(false);
       }
     }
 
     startFromAnchor();
-  }, [routerLocation.state, user?.site_id]);
+  }, [copy.quickStartError, routerLocation.state, user?.site_id]);
 
   useEffect(() => {
     return () => {
@@ -395,7 +589,7 @@ export default function EmptyLocationProcessModern() {
       await activateLocation(locations[0]);
       setStage("scan");
     } catch (err) {
-      setError(err.message || "Nie udalo sie uruchomic strefy");
+      setError(err.message || copy.beginZoneError);
     } finally {
       setSubmitting(false);
     }
@@ -449,7 +643,7 @@ export default function EmptyLocationProcessModern() {
       await endSession();
       navigate("/process");
     } catch (err) {
-      setError(err.message || "Nie udalo sie zamknac procesu.");
+      setError(err.message || copy.closeProcessError);
     } finally {
       setSubmitting(false);
     }
@@ -464,12 +658,12 @@ export default function EmptyLocationProcessModern() {
     const normalizedLocation = String(currentLocation.code || "").trim().toLowerCase();
 
     if (!normalizedInput) {
-      setError("Najpierw zeskanuj albo wpisz lokalizacje.");
+      setError(copy.scanLocationFirst);
       return;
     }
 
     if (normalizedInput !== normalizedLocation) {
-      setError("Skan nie zgadza sie z aktualna lokalizacja.");
+      setError(copy.scanMismatch);
       return;
     }
 
@@ -487,12 +681,12 @@ export default function EmptyLocationProcessModern() {
     const normalizedLocation = String(currentLocation.code || "").trim().toLowerCase();
 
     if (!normalizedInput) {
-      setError("Zeskanuj albo wpisz aktualna lokalizacje, aby szybko potwierdzic pusty adres.");
+      setError(copy.quickConfirmScan);
       return;
     }
 
     if (normalizedInput !== normalizedLocation) {
-      setError("Skan nie zgadza sie z aktualna lokalizacja.");
+      setError(copy.scanMismatch);
       return;
     }
 
@@ -523,7 +717,7 @@ export default function EmptyLocationProcessModern() {
       });
       await moveToNextLocation();
     } catch (err) {
-      setError(err.message || "Nie udalo sie potwierdzic pustej lokalizacji.");
+      setError(err.message || copy.confirmEmptyError);
     } finally {
       setSubmitting(false);
     }
@@ -555,7 +749,7 @@ export default function EmptyLocationProcessModern() {
       });
       await moveToNextLocation();
     } catch (err) {
-      setError(err.message || "Nie udalo sie zapisac problemu.");
+      setError(err.message || copy.saveProblemError);
     } finally {
       setSubmitting(false);
     }
@@ -569,12 +763,12 @@ export default function EmptyLocationProcessModern() {
     const quantity = Number(surplusData.quantity);
 
     if (!surplusData.sku.trim() && !surplusData.ean.trim()) {
-      setError("Podaj SKU albo EAN.");
+      setError(copy.missingSkuOrEan);
       return;
     }
 
     if (!quantity || quantity <= 0) {
-      setError("Ilosc musi byc wieksza od zera.");
+      setError(copy.invalidQuantity);
       return;
     }
 
@@ -588,7 +782,7 @@ export default function EmptyLocationProcessModern() {
       });
 
       if (!resolvedProduct) {
-        throw new Error("Nie znaleziono SKU lub EAN w kartotece produktow.");
+        throw new Error(copy.unknownProduct);
       }
 
       const normalizedPayload = {
@@ -624,7 +818,7 @@ export default function EmptyLocationProcessModern() {
 
       await moveToNextLocation();
     } catch (err) {
-      setError(err.message || "Nie udalo sie zapisac nadwyzki.");
+      setError(err.message || copy.saveSurplusError);
     } finally {
       setSubmitting(false);
     }
@@ -634,14 +828,14 @@ export default function EmptyLocationProcessModern() {
     return (
       <PageShell
         compact
-        title="Brak aktywnej sesji"
-        subtitle="Uruchom proces z menu, aby rozpoczac kontrole pustych lokalizacji."
+        title={copy.noSessionTitle}
+        subtitle={copy.noSessionSubtitle}
         icon={<Warehouse size={26} />}
         backTo="/menu"
       >
         <div className="app-card">
           <Button onClick={() => navigate("/menu")} size="lg">
-            Powrot do menu
+            {copy.back}
           </Button>
         </div>
       </PageShell>
@@ -653,12 +847,12 @@ export default function EmptyLocationProcessModern() {
   return (
     <PageShell
       compact
-      title="Inwentaryzacja pustych lokalizacji"
-      subtitle="Sprawdzaj lokalizacje jedna po drugiej, potwierdzaj puste miejsca i raportuj wyjatki bez opuszczania flow."
+      title={copy.title}
+      subtitle={copy.subtitle}
       icon={<Warehouse size={26} />}
       backTo="/process"
       onBack={handleExitProcess}
-      backLabel="Powrot do wyboru procesu"
+      backLabel={copy.backLabel}
     >
       <div className="process-layout">
         {quickStartInfo ? (
@@ -668,10 +862,12 @@ export default function EmptyLocationProcessModern() {
                 <ArrowRight size={22} />
               </div>
               <div className="process-stage-header__text">
-                <h2>Szybki start aktywny</h2>
+                <h2>{copy.quickStartActive}</h2>
                 <p>
-                  Start od lokalizacji {quickStartInfo.anchorCode} w strefie {quickStartInfo.zone}. Kolejnosc zostala ustawiona{" "}
-                  {quickStartInfo.directionLabel}.
+                  {copy.quickStartText
+                    .replace("{{location}}", quickStartInfo.anchorCode)
+                    .replace("{{zone}}", quickStartInfo.zone)
+                    .replace("{{direction}}", quickStartInfo.directionLabel)}
                 </p>
               </div>
             </div>
@@ -679,27 +875,27 @@ export default function EmptyLocationProcessModern() {
         ) : null}
 
         {selectedZone ? (
-          <SummaryCard zone={selectedZone} progress={progress} location={currentLocation?.code} />
+          <SummaryCard zone={selectedZone} progress={progress} location={currentLocation?.code} copy={copy} />
         ) : null}
 
         {error ? <div className="input-error-text">{error}</div> : null}
 
         {loading ? (
-          <div className="app-card">Ladowanie stref...</div>
+          <div className="app-card">{copy.loadingZones}</div>
         ) : null}
 
         {!loading && stage === "zones" ? (
           <div className="app-card process-panel">
             <div>
-              <h2 className="process-panel__title">Wybierz strefe startowa</h2>
+              <h2 className="process-panel__title">{copy.chooseZone}</h2>
               <p className="process-panel__subtitle">
-                Strefy sa pokazywane jako wygodne kafle, a po ukonczeniu znikaja z listy.
+                {copy.chooseZoneDesc}
               </p>
             </div>
 
             {availableZones.length === 0 ? (
               <div className="app-empty-state">
-                Brak kolejnych stref z aktywnymi lokalizacjami do sprawdzenia.
+                {copy.noZones}
               </div>
             ) : (
               <div className="process-zone-grid">
@@ -719,7 +915,7 @@ export default function EmptyLocationProcessModern() {
 
             <div className="process-actions">
               <Button variant="secondary" size="lg" loading={submitting} onClick={handleExitProcess}>
-                Zakoncz i wroc do wyboru procesu
+                {copy.finishAndBack}
               </Button>
             </div>
           </div>
@@ -732,8 +928,8 @@ export default function EmptyLocationProcessModern() {
                 <ScanLine size={22} />
               </div>
               <div className="process-stage-header__text">
-                <h2>Potwierdz lokalizacje</h2>
-                <p>Zeskanuj kod lub wpisz go recznie, aby przejsc dalej.</p>
+                  <h2>{copy.confirmLocationTitle}</h2>
+                  <p>{copy.confirmLocationDesc}</p>
               </div>
             </div>
 
@@ -743,7 +939,7 @@ export default function EmptyLocationProcessModern() {
               <input
                 ref={scanInputRef}
                 className="input"
-                placeholder="Zeskanuj lub wpisz kod lokalizacji"
+                placeholder={copy.locationPlaceholder}
                 value={scanValue}
                 onChange={(event) => setScanValue(event.target.value)}
                 onKeyDown={(event) => {
@@ -757,8 +953,8 @@ export default function EmptyLocationProcessModern() {
                 <button
                   type="button"
                   className="app-icon-button"
-                  onClick={() => openScanner("location", "Skanuj lokalizacje")}
-                  aria-label="Otworz skaner lokalizacji"
+                    onClick={() => openScanner("location", copy.scanLocation)}
+                    aria-label={copy.openLocationScanner}
                   style={{ minWidth: 46, alignSelf: "stretch" }}
                 >
                   <ScanLine size={18} />
@@ -768,7 +964,7 @@ export default function EmptyLocationProcessModern() {
 
             <div className="process-actions">
               <Button size="lg" loading={submitting} onClick={handleScanConfirm}>
-                Potwierdz skan
+                {copy.confirmScan}
               </Button>
             </div>
           </div>
@@ -781,29 +977,29 @@ export default function EmptyLocationProcessModern() {
                 <ClipboardCheck size={22} />
               </div>
               <div className="process-stage-header__text">
-                <h2>Czy lokalizacja jest pusta?</h2>
-                <p>Wybierz dalszy krok dla aktualnej lokalizacji w strefie {selectedZone}.</p>
+                  <h2>{copy.emptyQuestion}</h2>
+                  <p>{copy.emptyQuestionDesc.replace("{{zone}}", selectedZone)}</p>
               </div>
             </div>
 
             <div className="process-meta-grid">
               <div className="process-meta-item">
-                <div className="process-meta-item__label">Strefa</div>
+                  <div className="process-meta-item__label">{copy.zoneLabel}</div>
                 <div className="process-meta-item__value">{selectedZone}</div>
               </div>
               <div className="process-meta-item">
-                <div className="process-meta-item__label">Lokalizacja</div>
+                  <div className="process-meta-item__label">{copy.currentLocationLabel}</div>
                 <div className="process-meta-item__value">{currentLocation.code}</div>
               </div>
             </div>
 
             <div className="process-section-card">
-              <h3 className="process-section-card__title">Szybkie potwierdzenie skanem</h3>
+              <h3 className="process-section-card__title">{copy.quickConfirm}</h3>
               <div className="process-section-grid">
                 <input
                   ref={decisionInputRef}
                   className="input"
-                  placeholder="Zeskanuj aktualna lokalizacje i zatwierdz Enterem"
+                  placeholder={copy.quickConfirmPlaceholder}
                   value={decisionScanValue}
                   onChange={(event) => setDecisionScanValue(event.target.value)}
                   onKeyDown={(event) => {
@@ -817,8 +1013,8 @@ export default function EmptyLocationProcessModern() {
                   <button
                     type="button"
                     className="app-icon-button"
-                    onClick={() => openScanner("decision-location", "Skanuj lokalizacje do potwierdzenia")}
-                    aria-label="Otworz skaner potwierdzenia lokalizacji"
+                    onClick={() => openScanner("decision-location", copy.scanLocation)}
+                    aria-label={copy.openDecisionScanner}
                     style={{ minWidth: 46, alignSelf: "stretch" }}
                   >
                     <ScanLine size={18} />
@@ -834,9 +1030,9 @@ export default function EmptyLocationProcessModern() {
                 disabled={submitting}
                 onClick={handleConfirmEmpty}
               >
-                <div className="process-choice-card__title">Tak, jest pusta</div>
+                <div className="process-choice-card__title">{copy.yesEmpty}</div>
                 <div className="process-choice-card__desc">
-                  Zapisz lokalizacje jako sprawdzona i przejdz do kolejnej.
+                  {copy.yesEmptyDesc}
                 </div>
               </button>
 
@@ -849,9 +1045,9 @@ export default function EmptyLocationProcessModern() {
                   setStage("surplus");
                 }}
               >
-                <div className="process-choice-card__title">Dodaj towar</div>
+                <div className="process-choice-card__title">{copy.addGoods}</div>
                 <div className="process-choice-card__desc">
-                  Zarejestruj znaleziona nadwyzke z poziomu tej lokalizacji.
+                  {copy.addGoodsDesc}
                 </div>
               </button>
 
@@ -865,9 +1061,9 @@ export default function EmptyLocationProcessModern() {
                   setStage("problem");
                 }}
               >
-                <div className="process-choice-card__title">Zglos problem</div>
+                <div className="process-choice-card__title">{copy.reportProblem}</div>
                 <div className="process-choice-card__desc">
-                  Dodaj problem operacyjny lub identyfikacyjny bez przerywania pracy.
+                  {copy.reportProblemDesc}
                 </div>
               </button>
             </div>
@@ -881,21 +1077,21 @@ export default function EmptyLocationProcessModern() {
                 <AlertTriangle size={22} />
               </div>
               <div className="process-stage-header__text">
-                <h2>Wybierz typ problemu</h2>
-                <p>Opis zostanie zapisany razem z lokalizacja i aktualnym operatorem.</p>
+                  <h2>{copy.issueTitle}</h2>
+                  <p>{copy.issueDesc}</p>
               </div>
             </div>
 
             <textarea
               className="input"
-              placeholder="Opcjonalny komentarz do problemu"
+                placeholder={copy.issueNotePlaceholder}
               value={problemNote}
               onChange={(event) => setProblemNote(event.target.value)}
               style={{ minHeight: 120 }}
             />
 
             <div className="process-choice-grid">
-              {PROBLEM_OPTIONS.map((option) => (
+              {copy.problemOptions.map((option) => (
                 <button
                   key={option.value}
                   type="button"
@@ -911,7 +1107,7 @@ export default function EmptyLocationProcessModern() {
 
             <div className="process-actions">
               <Button variant="secondary" size="lg" onClick={() => setStage("decision")}>
-                Wroc
+                {copy.back}
               </Button>
             </div>
           </div>
@@ -924,8 +1120,8 @@ export default function EmptyLocationProcessModern() {
                 <PackagePlus size={22} />
               </div>
               <div className="process-stage-header__text">
-                <h2>Dodaj towar dla {currentLocation.code}</h2>
-                <p>Uzupelnij dane produktu i zapisz nadwyzke bez opuszczania procesu.</p>
+                  <h2>{copy.surplusTitle.replace("{{location}}", currentLocation.code)}</h2>
+                  <p>{copy.surplusDesc}</p>
               </div>
             </div>
 
@@ -934,19 +1130,19 @@ export default function EmptyLocationProcessModern() {
                 value={surplusData.ean}
                 onChange={(value) => setSurplusData((current) => ({ ...current, ean: value }))}
                 scannerEnabled={isScannerEnabledForField("ean")}
-                onOpenScanner={() => openScanner("surplus-ean", "Skanuj EAN produktu")}
+                onOpenScanner={() => openScanner("surplus-ean", copy.scanEan)}
               />
               <SkuStepModern
                 value={surplusData.sku}
                 onChange={(value) => setSurplusData((current) => ({ ...current, sku: value }))}
                 scannerEnabled={isScannerEnabledForField("sku")}
-                onOpenScanner={() => openScanner("surplus-sku", "Skanuj SKU produktu")}
+                onOpenScanner={() => openScanner("surplus-sku", copy.scanSku)}
               />
               <LotStepModern
                 value={surplusData.lot}
                 onChange={(value) => setSurplusData((current) => ({ ...current, lot: value }))}
                 scannerEnabled={isScannerEnabledForField("lot")}
-                onOpenScanner={() => openScanner("surplus-lot", "Skanuj numer LOT")}
+                onOpenScanner={() => openScanner("surplus-lot", copy.scanLot)}
               />
               <QuantityStepModern
                 value={surplusData.quantity}
@@ -956,10 +1152,10 @@ export default function EmptyLocationProcessModern() {
 
             <div className="process-actions">
               <Button size="lg" loading={submitting} onClick={handleSurplusSubmit}>
-                Zapisz towar
+                {copy.saveGoods}
               </Button>
               <Button variant="secondary" size="lg" onClick={() => setStage("decision")}>
-                Wroc
+                {copy.back}
               </Button>
             </div>
           </div>
@@ -972,28 +1168,28 @@ export default function EmptyLocationProcessModern() {
                 <CheckCircle2 size={22} />
               </div>
               <div className="process-stage-header__text">
-                <h2>Strefa zakonczona</h2>
-                <p>Ta czesc magazynu zostala juz obsluzona i jest gotowa do zamkniecia.</p>
+                  <h2>{copy.zoneFinished}</h2>
+                  <p>{copy.zoneFinishedDesc}</p>
               </div>
             </div>
 
             <div className="process-meta-grid">
               <div className="process-meta-item">
-                <div className="process-meta-item__label">Strefa</div>
+                  <div className="process-meta-item__label">{copy.zoneLabel}</div>
                 <div className="process-meta-item__value">{selectedZone || "-"}</div>
               </div>
               <div className="process-meta-item">
-                <div className="process-meta-item__label">Sprawdzone lokalizacje</div>
+                  <div className="process-meta-item__label">{copy.checkedLocations}</div>
                 <div className="process-meta-item__value">{totalLocations}</div>
               </div>
             </div>
 
             <div className="process-actions">
               <Button size="lg" onClick={resetToZonePicker}>
-                Rozpocznij nastepna strefe
+                {copy.startNextZone}
               </Button>
               <Button variant="secondary" size="lg" loading={submitting} onClick={handleExitProcess}>
-                Zakoncz i wroc do wyboru procesu
+                {copy.finishAndBack}
               </Button>
             </div>
           </div>
@@ -1002,7 +1198,7 @@ export default function EmptyLocationProcessModern() {
         <BarcodeScannerModal
           open={scannerModal.open}
           title={scannerModal.title}
-          description="Skieruj aparat na kod albo wgraj zdjecie. Odczyt trafia bezposrednio do aktualnego pola procesu pustych lokalizacji."
+          description={copy.scannerDescription}
           formats={
             scannerModal.fieldKey?.includes("ean")
               ? getScanFieldConfig("ean")?.formats || []
@@ -1020,7 +1216,7 @@ export default function EmptyLocationProcessModern() {
         <LoadingOverlay
           open={submitting}
           fullscreen
-          message="Przetwarzam lokalizacje i zapisuje postep kontroli..."
+          message={copy.overlay}
         />
       </div>
     </PageShell>

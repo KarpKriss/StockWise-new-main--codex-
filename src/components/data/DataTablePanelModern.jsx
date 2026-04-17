@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Download, Plus, Search, Upload } from "lucide-react";
 import PageShell from "../layout/PageShell";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 
 export default function DataTablePanelModern({
   title,
@@ -21,13 +22,14 @@ export default function DataTablePanelModern({
   onDelete,
   onEdit,
   onAdd,
-  addLabel = "Dodaj",
+  addLabel = "",
   pageSize = 25,
   page = null,
   totalCount = null,
   onPageChange = null,
   hasNextPage = null,
 }) {
+  const { t } = useAppPreferences();
   const [searchValue, setSearchValue] = useState("");
   const [internalPage, setInternalPage] = useState(1);
   const showActions = Boolean(onDelete || onEdit);
@@ -76,7 +78,7 @@ export default function DataTablePanelModern({
   return (
     <PageShell
       title={title}
-      subtitle="Jednolity widok roboczy do filtrowania, przegladu i utrzymania danych."
+      subtitle={t("dataTable.subtitle")}
       backTo={-1}
       actions={
         <>
@@ -84,7 +86,7 @@ export default function DataTablePanelModern({
           {onAdd ? (
             <button className="app-button app-button--primary" onClick={onAdd}>
               <Plus size={16} />
-              {addLabel}
+              {addLabel || t("common.add")}
             </button>
           ) : null}
         </>
@@ -101,7 +103,7 @@ export default function DataTablePanelModern({
               type="text"
               value={searchValue}
               className="app-input"
-              placeholder={searchPlaceholder || "Szukaj..."}
+              placeholder={searchPlaceholder || t("dataTable.searchPlaceholder")}
               onChange={(event) => {
                 setSearchValue(event.target.value);
               }}
@@ -117,7 +119,7 @@ export default function DataTablePanelModern({
               type="button"
               className="app-button app-button--secondary data-table-search-button"
               onClick={handleSearchSubmit}
-              aria-label="Wyszukaj"
+              aria-label={t("dataTable.searchAria")}
             >
               <Search size={16} />
             </button>
@@ -125,7 +127,7 @@ export default function DataTablePanelModern({
 
           {skuList.length > 0 ? (
             <select value={skuValue} onChange={(event) => onSkuChange && onSkuChange(event.target.value)}>
-              <option value="all">Wszystkie SKU</option>
+              <option value="all">{t("common.allSku")}</option>
               {skuList.map((sku) => (
                 <option key={sku} value={sku}>
                   {sku}
@@ -136,7 +138,7 @@ export default function DataTablePanelModern({
 
           {locationsList.length > 0 ? (
             <select value={locationValue} onChange={(event) => onLocationChange && onLocationChange(event.target.value)}>
-              <option value="all">Wszystkie lokalizacje</option>
+              <option value="all">{t("common.allLocations")}</option>
               {locationsList.map((location) => (
                 <option key={location} value={location}>
                   {location}
@@ -149,14 +151,14 @@ export default function DataTablePanelModern({
             {onImport ? (
               <button className="app-button app-button--secondary" onClick={onImport}>
                 <Upload size={16} />
-                Import
+                {t("common.import")}
               </button>
             ) : null}
 
             {onExport ? (
               <button className="app-button app-button--secondary" onClick={onExport}>
                 <Download size={16} />
-                Eksport
+                {t("common.export")}
               </button>
             ) : null}
           </div>
@@ -176,7 +178,7 @@ export default function DataTablePanelModern({
                   {column.label}
                 </th>
               ))}
-              {showActions ? <th>Akcje</th> : null}
+              {showActions ? <th>{t("common.actions")}</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -202,7 +204,7 @@ export default function DataTablePanelModern({
                   <td>
                     {onDelete ? (
                       <button className="app-button app-button--secondary" onClick={() => onDelete(row)}>
-                        Usun
+                        {t("common.delete")}
                       </button>
                     ) : null}
                   </td>
@@ -213,7 +215,7 @@ export default function DataTablePanelModern({
             {pagedData.length === 0 ? (
               <tr>
                 <td colSpan={columns.length + (showActions ? 1 : 0)} className="app-empty-state">
-                  Brak danych
+                  {t("common.noData")}
                 </td>
               </tr>
             ) : null}
@@ -224,11 +226,11 @@ export default function DataTablePanelModern({
           <div className="helper-note">
             {hasKnownTotal ? (
               <>
-                Pokazywane: <strong>{pagedData.length}</strong> z <strong>{resolvedTotalCount}</strong> rekordow
+                {t("dataTable.shownRecords", { shown: pagedData.length, total: resolvedTotalCount })}
               </>
             ) : (
               <>
-                Pokazywane: <strong>{pagedData.length}</strong> rekordow na tej stronie
+                {t("dataTable.shownPageRecords", { shown: pagedData.length })}
               </>
             )}
           </div>
@@ -239,10 +241,12 @@ export default function DataTablePanelModern({
               disabled={currentPage <= 1}
               onClick={() => goToPage(currentPage - 1)}
             >
-              Poprzednia
+              {t("common.previous")}
             </button>
             <div className="data-table-pagination__status">
-              {hasKnownTotal ? `Strona ${currentPage} / ${totalPages}` : `Strona ${currentPage}`}
+              {hasKnownTotal
+                ? t("dataTable.pageStatus", { current: currentPage, total: totalPages })
+                : t("dataTable.pageStatusSimple", { current: currentPage })}
             </div>
             <button
               type="button"
@@ -250,7 +254,7 @@ export default function DataTablePanelModern({
               disabled={hasKnownTotal ? currentPage >= totalPages : hasNextPage === false}
               onClick={() => goToPage(currentPage + 1)}
             >
-              Nastepna
+              {t("common.next")}
             </button>
           </div>
         </div>

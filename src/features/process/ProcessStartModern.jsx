@@ -3,11 +3,13 @@ import { useState } from "react";
 import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import PageShell from "../../components/layout/PageShell";
 import Button from "../../components/ui/Button";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 import { useSession } from "../../core/session/AppSession";
 import "../menu/menu-modern.css";
 
 export default function ProcessStartModern() {
   const { startSession } = useSession();
+  const { t } = useAppPreferences();
   const [selectedType, setSelectedType] = useState(null);
   const [starting, setStarting] = useState(false);
 
@@ -26,8 +28,8 @@ export default function ProcessStartModern() {
 
   return (
     <PageShell
-      title="Wybierz tryb pracy"
-      subtitle="Rozpocznij proces, ktory najlepiej odpowiada Twojemu zadaniu na hali."
+      title={t("processStart.title")}
+      subtitle={t("processStart.subtitle")}
       icon={<Workflow size={26} />}
       backTo="/menu"
       compact
@@ -41,10 +43,10 @@ export default function ProcessStartModern() {
             <Boxes size={22} />
           </div>
           <div className="card-title" style={{ marginTop: 14 }}>
-            Inwentaryzuj puste
+            {t("processStart.emptyTitle")}
           </div>
           <div className="card-desc">
-            Kontrola pustych lokalizacji, potwierdzenia, nadwyzki i zgloszenia problemow.
+            {t("processStart.emptyDesc")}
           </div>
         </button>
 
@@ -56,10 +58,10 @@ export default function ProcessStartModern() {
             <ScanSearch size={22} />
           </div>
           <div className="card-title" style={{ marginTop: 14 }}>
-            Inwentaryzacja reczna
+            {t("processStart.manualTitle")}
           </div>
           <div className="card-desc">
-            Reczne skanowanie lokalizacji, SKU, LOT i zapisy brakow oraz nadwyzek.
+            {t("processStart.manualDesc")}
           </div>
         </button>
       </div>
@@ -68,17 +70,17 @@ export default function ProcessStartModern() {
         <Button
           size="lg"
           loading={starting}
-          loadingLabel="Uruchamiam proces..."
+          loadingLabel={t("processStart.startLoading")}
           disabled={!selectedType || starting}
           onClick={handleStart}
         >
-          Rozpocznij prace
+          {t("processStart.start")}
         </Button>
       </div>
       <LoadingOverlay
         open={starting}
         fullscreen
-        message="Uruchamiam sesje operatora i przygotowuje wybrany proces..."
+        message={t("processStart.overlay")}
       />
     </PageShell>
   );

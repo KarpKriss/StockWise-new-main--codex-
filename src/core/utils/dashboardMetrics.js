@@ -1,3 +1,9 @@
+import { getLanguageLocale, getStoredLanguage } from "../preferences/AppPreferences";
+
+function getActiveLocale() {
+  return getLanguageLocale(getStoredLanguage());
+}
+
 function normalizeType(type) {
   const normalized = String(type || "").trim().toLowerCase();
 
@@ -62,7 +68,7 @@ function durationMs(start, end) {
 }
 
 export function formatMoney(value) {
-  return new Intl.NumberFormat("pl-PL", {
+  return new Intl.NumberFormat(getActiveLocale(), {
     style: "currency",
     currency: "PLN",
     minimumFractionDigits: 2,
@@ -71,7 +77,7 @@ export function formatMoney(value) {
 }
 
 export function formatNumber(value, digits = 0) {
-  return new Intl.NumberFormat("pl-PL", {
+  return new Intl.NumberFormat(getActiveLocale(), {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   }).format(Number(value || 0));

@@ -1,42 +1,43 @@
 import { AlertTriangle, Database, Map, Package, ScrollText, Tag, Warehouse } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import PageShell from "../../components/layout/PageShell";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 import "../menu/menu-modern.css";
 
 const items = [
   {
-    title: "Produkty",
-    description: "Referencje SKU, EAN i statusy indeksow.",
+    titleKey: "dataMenu.productsTitle",
+    descriptionKey: "dataMenu.productsDesc",
     path: "/data/products",
     icon: Package,
   },
   {
-    title: "Stock",
-    description: "Stany magazynowe po lokalizacji i produkcie.",
+    titleKey: "dataMenu.stockTitle",
+    descriptionKey: "dataMenu.stockDesc",
     path: "/data/stock",
     icon: Warehouse,
   },
   {
-    title: "Ceny",
-    description: "Wartosci produktow wykorzystywane w analizach finansowych.",
+    titleKey: "dataMenu.pricesTitle",
+    descriptionKey: "dataMenu.pricesDesc",
     path: "/data/prices",
     icon: Tag,
   },
   {
-    title: "Mapa magazynu",
-    description: "Struktura lokalizacji, stref i statusow operacyjnych.",
+    titleKey: "dataMenu.locationsTitle",
+    descriptionKey: "dataMenu.locationsDesc",
     path: "/data/locations",
     icon: Map,
   },
   {
-    title: "Historia korekt",
-    description: "Zmiany danych i log korekt bez zgloszen operacyjnych.",
+    titleKey: "dataMenu.correctionsTitle",
+    descriptionKey: "dataMenu.correctionsDesc",
     path: "/data/history",
     icon: ScrollText,
   },
   {
-    title: "Problemy",
-    description: "Zgloszenia z procesow inwentaryzacji i blokady lokalizacji do zwolnienia.",
+    titleKey: "dataMenu.problemsTitle",
+    descriptionKey: "dataMenu.problemsDesc",
     path: "/data/problems",
     icon: AlertTriangle,
   },
@@ -44,11 +45,12 @@ const items = [
 
 export default function DataMenuModern() {
   const navigate = useNavigate();
+  const { t } = useAppPreferences();
 
   return (
     <PageShell
-      title="Dane referencyjne"
-      subtitle="Centralne miejsce do zarzadzania produktami, stockiem, cenami i historia zmian."
+      title={t("dataMenu.title")}
+      subtitle={t("dataMenu.subtitle")}
       icon={<Database size={26} />}
       backTo="/menu"
       compact
@@ -67,9 +69,9 @@ export default function DataMenuModern() {
                 <Icon size={22} />
               </div>
               <div className="card-title" style={{ marginTop: 14 }}>
-                {item.title}
+                {t(item.titleKey)}
               </div>
-              <div className="card-desc">{item.description}</div>
+              <div className="card-desc">{t(item.descriptionKey)}</div>
             </button>
           );
         })}

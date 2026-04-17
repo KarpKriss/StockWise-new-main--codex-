@@ -1,42 +1,44 @@
 import { ArrowRight, Camera, Download, FileText, Settings2, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import PageShell from "../../components/layout/PageShell";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 import "../../features/menu/menu-modern.css";
 
 const SETTINGS_ITEMS = [
   {
-    title: "Uzytkownicy",
-    description: "Zarzadzanie kontami, rolami i dostepem operatorow do systemu.",
+    titleKey: "settings.usersTitle",
+    descriptionKey: "settings.usersDesc",
     path: "/admin/users",
     icon: Users,
   },
   {
-    title: "Konfiguracja procesu",
-    description: "Przeglad krokow procesu, wymaganych pol i logiki skanowania.",
+    titleKey: "settings.processTitle",
+    descriptionKey: "settings.processDesc",
     path: "/admin/process-config",
     icon: SlidersHorizontal,
   },
   {
-    title: "Skanowanie",
+    titleKey: "settings.scanningTitle",
     description: "Wlaczanie kamery, wybór pol procesu i formatow kodow dla telefonow operatorow.",
+    descriptionKey: "settings.scanningDesc",
     path: "/admin/scanning",
     icon: Camera,
   },
   {
-    title: "Import/Export",
-    description: "Skroty do obslugi danych wsadowych, eksportow i konfiguracji zasilek.",
+    titleKey: "settings.importExportTitle",
+    descriptionKey: "settings.importExportDesc",
     path: "/admin/import-export",
     icon: Download,
   },
   {
-    title: "Log's",
-    description: "Punkt startowy do audytow, historii zmian i logow operacyjnych.",
+    titleKey: "settings.logsTitle",
+    descriptionKey: "settings.logsDesc",
     path: "/admin/logs",
     icon: FileText,
   },
   {
-    title: "Statusy",
-    description: "Biezacy status systemu oraz szybki przeglad kondycji srodowiska.",
+    titleKey: "settings.statusesTitle",
+    descriptionKey: "settings.statusesDesc",
     path: "/admin/statuses",
     icon: ShieldCheck,
   },
@@ -44,14 +46,15 @@ const SETTINGS_ITEMS = [
 
 export default function SettingsHome() {
   const navigate = useNavigate();
+  const { t } = useAppPreferences();
 
   return (
     <PageShell
-      title="Ustawienia"
-      subtitle="Wybierz obszar administracyjny, nad ktorym chcesz dalej pracowac."
+      title={t("settings.title")}
+      subtitle={t("settings.subtitle")}
       icon={<Settings2 size={26} />}
       backTo="/menu"
-      backLabel="Powrot do menu"
+      backLabel={t("common.backToMenu")}
       compact
     >
       <div className="menu-grid">
@@ -69,8 +72,8 @@ export default function SettingsHome() {
                 <Icon size={22} />
               </div>
               <div className="menu-card__content">
-                <div className="menu-card__title">{item.title}</div>
-                <div className="menu-card__desc">{item.description}</div>
+                <div className="menu-card__title">{t(item.titleKey)}</div>
+                <div className="menu-card__desc">{t(item.descriptionKey)}</div>
                 <div
                   style={{
                     marginTop: 12,
@@ -81,7 +84,7 @@ export default function SettingsHome() {
                     gap: 6,
                   }}
                 >
-                  Otworz sekcje <ArrowRight size={14} />
+                  {t("common.openSection")} <ArrowRight size={14} />
                 </div>
               </div>
             </button>

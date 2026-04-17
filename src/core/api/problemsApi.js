@@ -92,6 +92,11 @@ export async function resolveProblemCase({ issueId, locationId, releaseNote }) {
 
   if (rpcResult.error) {
     console.error("RESOLVE PROBLEM CASE RPC ERROR:", rpcResult.error);
+    if (String(rpcResult.error.message || "").includes("resolve_problem_case")) {
+      throw new Error(
+        "Brakuje backendowej funkcji do zwalniania problemu. Wdroz SQL dla resolve_problem_case."
+      );
+    }
     throw new Error(rpcResult.error.message || "Nie udalo sie zwolnic problemu");
   }
 

@@ -8,6 +8,13 @@
   color: var(--app-text);
 }
 
+:root[data-theme="dark"] .dashboard-shell {
+  background:
+    radial-gradient(circle at top left, rgba(143, 131, 255, 0.12), transparent 24%),
+    radial-gradient(circle at 85% 18%, rgba(116, 200, 255, 0.08), transparent 22%),
+    linear-gradient(180deg, #0d1528 0%, #101a31 100%);
+}
+
 .dashboard-header {
   display: flex;
   justify-content: space-between;
@@ -75,6 +82,12 @@
   box-shadow: inset 0 0 0 1px rgba(84, 98, 140, 0.1), var(--app-shadow-sm);
 }
 
+:root[data-theme="dark"] .dashboard-secondary-button {
+  background: rgba(27, 39, 69, 0.94);
+  color: var(--app-text);
+  box-shadow: inset 0 0 0 1px rgba(155, 174, 255, 0.14), var(--app-shadow-sm);
+}
+
 .dashboard-primary-button:disabled,
 .dashboard-secondary-button:disabled {
   opacity: 0.6;
@@ -88,6 +101,10 @@
   border: 1px solid var(--app-border);
   box-shadow: var(--app-shadow-md);
   margin-bottom: 20px;
+}
+
+:root[data-theme="dark"] .dashboard-filter-bar {
+  background: linear-gradient(180deg, rgba(24, 36, 66, 0.96), rgba(18, 28, 53, 0.92));
 }
 
 .dashboard-filter {
@@ -107,6 +124,11 @@
   color: var(--app-text);
 }
 
+:root[data-theme="dark"] .dashboard-filter select {
+  border-color: rgba(155, 174, 255, 0.16);
+  background: rgba(12, 19, 38, 0.86);
+}
+
 .dashboard-source {
   margin-left: auto;
   color: var(--app-text-soft);
@@ -120,6 +142,11 @@
   background: rgba(255, 255, 255, 0.86);
   margin-bottom: 18px;
   border: 1px solid var(--app-border);
+}
+
+:root[data-theme="dark"] .dashboard-error,
+:root[data-theme="dark"] .dashboard-loading {
+  background: rgba(24, 36, 66, 0.94);
 }
 
 .dashboard-error {
@@ -142,6 +169,11 @@
   border: 1px solid var(--app-border);
   box-shadow: var(--app-shadow-md);
   backdrop-filter: blur(18px);
+}
+
+:root[data-theme="dark"] .dashboard-card,
+:root[data-theme="dark"] .dashboard-table-card {
+  background: linear-gradient(180deg, rgba(24, 36, 66, 0.96), rgba(18, 28, 53, 0.92));
 }
 
 .dashboard-card-label {
@@ -194,6 +226,10 @@
 .dashboard-table th {
   color: #6b7692;
   font-weight: 600;
+}
+
+:root[data-theme="dark"] .dashboard-table th {
+  color: var(--app-text-soft);
 }
 
 .dashboard-empty {

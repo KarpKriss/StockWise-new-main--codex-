@@ -152,6 +152,26 @@
   color: var(--app-text-soft);
 }
 
+:root[data-theme="dark"] .menu-summary {
+  background: linear-gradient(135deg, rgba(24, 36, 66, 0.96), rgba(18, 28, 53, 0.92));
+  border-color: rgba(155, 174, 255, 0.14);
+}
+
+:root[data-theme="dark"] .menu-summary__site-pill {
+  background: linear-gradient(135deg, rgba(143, 131, 255, 0.18), rgba(31, 45, 79, 0.92));
+  border-color: rgba(143, 131, 255, 0.22);
+  color: #eef3ff;
+}
+
+:root[data-theme="dark"] .menu-card {
+  border-color: rgba(143, 131, 255, 0.14);
+  background: linear-gradient(180deg, rgba(24, 36, 66, 0.96), rgba(18, 28, 53, 0.92));
+}
+
+:root[data-theme="dark"] .menu-card:hover {
+  border-color: rgba(143, 131, 255, 0.28);
+}
+
 @media (max-width: 768px) {
   .menu-card {
     border-radius: 24px;

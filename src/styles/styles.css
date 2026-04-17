@@ -29,7 +29,7 @@
   --app-surface-strong: rgba(20, 31, 58, 0.96);
   --app-border: rgba(155, 174, 255, 0.16);
   --app-text: #edf3ff;
-  --app-text-soft: #9fb0d4;
+  --app-text-soft: #b7c5e6;
   --app-primary: #8f83ff;
   --app-primary-strong: #6d5efc;
   --app-primary-soft: rgba(143, 131, 255, 0.16);
@@ -67,6 +67,29 @@ body {
     radial-gradient(circle at top left, rgba(143, 131, 255, 0.14), transparent 25%),
     radial-gradient(circle at right center, rgba(116, 200, 255, 0.1), transparent 24%),
     linear-gradient(180deg, #0d1528 0%, #101a31 100%);
+}
+
+:root[data-theme="dark"] .page-shell__pill,
+:root[data-theme="dark"] .page-shell__language,
+:root[data-theme="dark"] .page-shell__theme-toggle,
+:root[data-theme="dark"] .app-icon-button,
+:root[data-theme="dark"] .icon-button {
+  background: rgba(27, 39, 69, 0.92);
+  color: var(--app-text);
+  box-shadow: inset 0 0 0 1px rgba(155, 174, 255, 0.14), var(--app-shadow-sm);
+}
+
+:root[data-theme="dark"] .page-shell__select {
+  color: var(--app-text);
+}
+
+:root[data-theme="dark"] .page-shell__theme-option {
+  color: var(--app-text-soft);
+}
+
+:root[data-theme="dark"] .page-shell__theme-option.is-active {
+  background: linear-gradient(135deg, rgba(143, 131, 255, 0.22), rgba(31, 45, 79, 0.96));
+  color: #ffffff;
 }
 
 button,
@@ -210,6 +233,10 @@ a {
   margin-bottom: 18px;
 }
 
+:root[data-theme="dark"] .page-shell__hero {
+  background: linear-gradient(180deg, rgba(23, 34, 63, 0.96), rgba(19, 29, 54, 0.92));
+}
+
 .page-shell__eyebrow {
   color: var(--app-text-soft);
   font-size: 12px;
@@ -283,6 +310,11 @@ a {
   box-shadow: var(--app-shadow-sm);
 }
 
+:root[data-theme="dark"] .card.selectable {
+  border-color: rgba(143, 131, 255, 0.16);
+  background: linear-gradient(180deg, rgba(24, 36, 66, 0.96), rgba(18, 28, 53, 0.94));
+}
+
 .card.selectable:hover {
   transform: translateY(-4px);
   border-color: rgba(109, 94, 252, 0.26);
@@ -294,6 +326,14 @@ a {
   background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(235,238,255,0.95));
   box-shadow:
     0 0 0 5px rgba(109, 94, 252, 0.08),
+    var(--app-shadow-lg);
+}
+
+:root[data-theme="dark"] .card.selectable.active {
+  border-color: rgba(143, 131, 255, 0.36);
+  background: linear-gradient(180deg, rgba(31, 45, 79, 0.98), rgba(24, 36, 66, 0.96));
+  box-shadow:
+    0 0 0 5px rgba(143, 131, 255, 0.12),
     var(--app-shadow-lg);
 }
 
@@ -360,6 +400,13 @@ a {
   background: rgba(255,255,255,0.88);
   color: var(--app-text);
   box-shadow: inset 0 0 0 1px var(--app-border);
+}
+
+:root[data-theme="dark"] .app-button--secondary,
+:root[data-theme="dark"] .btn-secondary {
+  background: rgba(27, 39, 69, 0.94);
+  color: var(--app-text);
+  box-shadow: inset 0 0 0 1px rgba(155, 174, 255, 0.14);
 }
 
 .app-button--ghost {
@@ -584,6 +631,21 @@ textarea {
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
+:root[data-theme="dark"] .app-input,
+:root[data-theme="dark"] .input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  border: 1px solid rgba(155, 174, 255, 0.16);
+  background: rgba(12, 19, 38, 0.86);
+  color: var(--app-text);
+}
+
+:root[data-theme="dark"] .app-input::placeholder,
+:root[data-theme="dark"] .input::placeholder,
+:root[data-theme="dark"] textarea::placeholder {
+  color: rgba(183, 197, 230, 0.72);
+}
+
 .app-input:focus,
 .app-input.is-focused,
 .input:focus,
@@ -592,6 +654,16 @@ textarea:focus {
   border-color: rgba(109, 94, 252, 0.42);
   box-shadow: 0 0 0 5px rgba(109, 94, 252, 0.1);
   background: rgba(255,255,255,0.96);
+}
+
+:root[data-theme="dark"] .app-input:focus,
+:root[data-theme="dark"] .app-input.is-focused,
+:root[data-theme="dark"] .input:focus,
+:root[data-theme="dark"] select:focus,
+:root[data-theme="dark"] textarea:focus {
+  border-color: rgba(143, 131, 255, 0.44);
+  box-shadow: 0 0 0 5px rgba(143, 131, 255, 0.16);
+  background: rgba(17, 26, 48, 0.96);
 }
 
 .app-input.is-error {
@@ -754,6 +826,11 @@ table th {
   box-shadow: var(--app-shadow-sm);
 }
 
+:root[data-theme="dark"] .scan-placeholder {
+  background: linear-gradient(135deg, rgba(143, 131, 255, 0.16), rgba(19, 29, 54, 0.94));
+  border: 1px solid rgba(143, 131, 255, 0.16);
+}
+
 .app-empty-state {
   text-align: center;
   color: var(--app-text-soft);
@@ -776,6 +853,10 @@ table th {
   border: 1px solid var(--app-border);
   box-shadow: var(--app-shadow-lg);
   position: relative;
+}
+
+:root[data-theme="dark"] .login-card {
+  background: linear-gradient(180deg, rgba(21, 31, 58, 0.98), rgba(16, 24, 46, 0.94));
 }
 
 .login-brand {
@@ -841,6 +922,10 @@ table th {
   z-index: 10;
 }
 
+:root[data-theme="dark"] .loaderOverlay {
+  background: rgba(9, 15, 30, 0.76);
+}
+
 @keyframes logistics-box-run {
   0% {
     left: -8%;
@@ -895,6 +980,64 @@ table th {
   background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(239,244,255,0.88));
   border: 1px solid rgba(109, 94, 252, 0.1);
   box-shadow: var(--app-shadow-sm);
+}
+
+:root[data-theme="dark"] .process-summary-item,
+:root[data-theme="dark"] .process-config-step-card,
+:root[data-theme="dark"] .import-config-section-card,
+:root[data-theme="dark"] .import-mapping-row,
+:root[data-theme="dark"] .system-status-hero,
+:root[data-theme="dark"] .system-status-metric,
+:root[data-theme="dark"] .system-alert,
+:root[data-theme="dark"] .history-modal,
+:root[data-theme="dark"] .scanner-diagnostic-bar,
+:root[data-theme="dark"] .scanner-diagnostic-result__row {
+  background: linear-gradient(180deg, rgba(24, 36, 66, 0.96), rgba(18, 28, 53, 0.92));
+  border-color: rgba(155, 174, 255, 0.14);
+}
+
+:root[data-theme="dark"] .system-status-hero--warning,
+:root[data-theme="dark"] .system-status-metric--warning,
+:root[data-theme="dark"] .system-alert--warning {
+  background: linear-gradient(180deg, rgba(74, 56, 18, 0.32), rgba(38, 31, 19, 0.9));
+}
+
+:root[data-theme="dark"] .system-status-hero--critical,
+:root[data-theme="dark"] .system-status-metric--critical,
+:root[data-theme="dark"] .system-alert--critical {
+  background: linear-gradient(180deg, rgba(82, 29, 48, 0.34), rgba(38, 21, 31, 0.92));
+}
+
+:root[data-theme="dark"] .history-modal__pre,
+:root[data-theme="dark"] .import-mapping-input,
+:root[data-theme="dark"] .import-export-toggle--card,
+:root[data-theme="dark"] .process-config-toggle {
+  background: rgba(12, 19, 38, 0.82);
+  border-color: rgba(155, 174, 255, 0.14);
+  color: var(--app-text);
+}
+
+:root[data-theme="dark"] .regex-help__button {
+  background: linear-gradient(135deg, rgba(143, 131, 255, 0.2), rgba(31, 45, 79, 0.94));
+  box-shadow: inset 0 0 0 1px rgba(143, 131, 255, 0.16), var(--app-shadow-sm);
+}
+
+:root[data-theme="dark"] .regex-help__tooltip {
+  background: linear-gradient(180deg, rgba(24, 36, 66, 0.98), rgba(19, 29, 54, 0.96));
+  border-color: rgba(155, 174, 255, 0.16);
+}
+
+:root[data-theme="dark"] .regex-help__tooltip code {
+  background: rgba(143, 131, 255, 0.18);
+  color: #d9ddff;
+}
+
+:root[data-theme="dark"] .loading-overlay {
+  background: rgba(7, 12, 24, 0.62);
+}
+
+:root[data-theme="dark"] .loading-overlay__panel {
+  background: linear-gradient(180deg, rgba(24, 36, 66, 0.98), rgba(18, 28, 53, 0.96));
 }
 
 .process-summary-item__label {

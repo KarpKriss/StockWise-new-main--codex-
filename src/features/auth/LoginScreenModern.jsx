@@ -5,10 +5,12 @@ import { Boxes } from 'lucide-react';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import StockWiseLoader from '../../components/loaders/StockWiseLoader';
+import { useAppPreferences } from '../../core/preferences/AppPreferences';
 
 export default function LoginScreenModern() {
   const { login, user, loading: authLoading, availableSites } = useAuth();
   const navigate = useNavigate();
+  const { t } = useAppPreferences();
 
   const [form, setForm] = useState({
     login: '',
@@ -51,9 +53,9 @@ export default function LoginScreenModern() {
   const validate = () => {
     const nextErrors = {};
 
-    if (!form.login) nextErrors.login = 'Wprowadz login';
-    if (!form.password) nextErrors.password = 'Wprowadz haslo';
-    if (availableSites.length > 0 && !form.siteId) nextErrors.siteId = 'Wybierz magazyn';
+    if (!form.login) nextErrors.login = t('auth.enterLogin');
+    if (!form.password) nextErrors.password = t('auth.enterPassword');
+    if (availableSites.length > 0 && !form.siteId) nextErrors.siteId = t('auth.selectSite');
 
     return nextErrors;
   };
@@ -77,11 +79,11 @@ export default function LoginScreenModern() {
       const result = await login(form.login, form.password, form.siteId || null);
 
       if (!result?.success) {
-        setErrors({ general: result?.message || 'Blad logowania' });
+        setErrors({ general: result?.message || t('auth.loginError') });
       }
     } catch (error) {
       console.error('LOGIN SCREEN ERROR:', error);
-      setErrors({ general: 'Blad systemu' });
+      setErrors({ general: t('auth.systemError') });
     } finally {
       setLoading(false);
     }
@@ -97,7 +99,7 @@ export default function LoginScreenModern() {
           <div>
             <h1 className="login-brand__title">StockWise</h1>
             <p className="login-brand__subtitle">
-              Warehouse operations, calmer, cleaner, clearer.
+              {t('auth.brandSubtitle')}
             </p>
           </div>
         </div>
@@ -105,7 +107,7 @@ export default function LoginScreenModern() {
         <form onSubmit={handleSubmit} className="login-form">
           {availableSites.length > 0 ? (
             <div className="app-field">
-              <label className="app-field__label">Magazyn</label>
+              <label className="app-field__label">{t('auth.site')}</label>
               <select
                 name="siteId"
                 value={form.siteId}
@@ -113,7 +115,7 @@ export default function LoginScreenModern() {
                 disabled={loading}
                 className={`app-input ${errors.siteId ? 'is-error' : ''}`.trim()}
               >
-                <option value="">Wybierz magazyn</option>
+                <option value="">{t('auth.chooseSite')}</option>
                 {availableSites.map((site) => (
                   <option key={site.id} value={site.id}>
                     {site.label}
@@ -128,10 +130,10 @@ export default function LoginScreenModern() {
             id="login-input"
             type="text"
             name="login"
-            label="Login"
+            label={t('auth.login')}
             value={form.login}
             onChange={handleChange}
-            placeholder="Wpisz login"
+            placeholder={t('auth.loginPlaceholder')}
             error={errors.login}
             disabled={loading}
           />
@@ -139,18 +141,18 @@ export default function LoginScreenModern() {
           <Input
             type="password"
             name="password"
-            label="Haslo"
+            label={t('auth.password')}
             value={form.password}
             onChange={handleChange}
-            placeholder="Wpisz haslo"
+            placeholder={t('auth.passwordPlaceholder')}
             error={errors.password}
             disabled={loading}
           />
 
           {errors.general ? <div className="login-error">{errors.general}</div> : null}
 
-          <Button type="submit" loading={loading} loadingLabel="Logowanie..." disabled={loading} size="lg">
-            Zaloguj sie
+          <Button type="submit" loading={loading} loadingLabel={t('auth.signInLoading')} disabled={loading} size="lg">
+            {t('auth.signIn')}
           </Button>
         </form>
 

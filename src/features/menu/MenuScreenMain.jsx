@@ -8,6 +8,7 @@ import { fetchManualProcessConfig } from "../../core/api/manualProcessApi";
 import LoadingOverlay from "../../components/loaders/LoadingOverlay";
 import PageShell from "../../components/layout/PageShell";
 import BarcodeScannerModal from "../../components/scanner/BarcodeScannerModal";
+import { useAppPreferences } from "../../core/preferences/AppPreferences";
 import "./menu.css";
 import "./menu-modern.css";
 import {
@@ -28,11 +29,11 @@ import {
 import Button from "../../components/ui/Button";
 
 const iconMap = {
-  Proces: Play,
-  Historia: History,
-  Dane: Database,
-  Statystyki: BarChart3,
-  Ustawienia: Settings,
+  process: Play,
+  history: History,
+  data: Database,
+  dashboard: BarChart3,
+  settings: Settings,
 };
 
 const roleIconMap = {
@@ -43,29 +44,22 @@ const roleIconMap = {
   admin: Crown,
 };
 
-const roleLabelMap = {
-  user: "Operator",
-  superuser: "Superuser",
-  office: "Office",
-  manager: "Manager",
-  admin: "Administrator",
-};
-
 const menuItems = [
-  { label: "Proces", path: "/process", permission: "process" },
-  { label: "Historia", path: "/history", permission: "history" },
-  { label: "Dane", path: "/data", permission: "data" },
-  { label: "Statystyki", path: "/dashboard", permission: "dashboard" },
-  { label: "Ustawienia", path: "/admin", permission: "admin" },
+  { key: "process", path: "/process", permission: "process" },
+  { key: "history", path: "/history", permission: "history" },
+  { key: "data", path: "/data", permission: "data" },
+  { key: "dashboard", path: "/dashboard", permission: "dashboard" },
+  { key: "settings", path: "/admin", permission: "admin" },
 ];
 
 export default function MenuScreenMain() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { endSession, session, startSession } = useSession();
+  const { t } = useAppPreferences();
 
   const role = user?.role?.toLowerCase();
-  const displayName = user?.name || user?.email?.split("@")[0] || "Operator";
+  const displayName = user?.name || user?.email?.split("@")[0] || t("roles.user");
   const RoleIcon = roleIconMap[role] || User;
   const activeSite = useMemo(() => {
     const accessibleSites = Array.isArray(user?.accessible_sites) ? user.accessible_sites : [];
@@ -87,7 +81,7 @@ export default function MenuScreenMain() {
     ? activeSite.name
       ? `${activeSite.name} (${activeSite.code || activeSite.id})`
       : activeSite.code || activeSite.id
-    : "Brak przypisanego magazynu";
+    : t("menu.noAssignedWarehouse");
   const filteredMenu = menuItems.filter((item) => hasPermission(role, item.permission));
   const [quickStartOpen, setQuickStartOpen] = useState(false);
   const [quickStartCode, setQuickStartCode] = useState("");
@@ -159,7 +153,7 @@ export default function MenuScreenMain() {
       const normalizedCode = quickStartCode.trim().toUpperCase();
 
       if (!normalizedCode) {
-        setQuickStartError("Zeskanuj lub wpisz lokalizacje, od ktorej chcesz zaczac.");
+        setQuickStartError(t("menu.quickStartError"));
         return;
       }
 
@@ -174,7 +168,7 @@ export default function MenuScreenMain() {
       });
     } catch (error) {
       console.error("QUICK START INIT ERROR:", error);
-      setQuickStartError(error.message || "Nie udalo sie uruchomic szybkiego startu.");
+      setQuickStartError(error.message || t("menu.quickStartInitError"));
     } finally {
       setQuickStartSubmitting(false);
     }
@@ -182,16 +176,16 @@ export default function MenuScreenMain() {
 
   return (
     <PageShell
-      title={`Czesc, ${displayName}`}
-      subtitle="Wybierz obszar pracy i przejdz od razu do potrzebnego modulu."
+      title={t("menu.greeting", { name: displayName })}
+      subtitle={t("menu.subtitle")}
       icon={<RoleIcon size={26} className={`role-icon role-${role}`} />}
       actions={
         <>
           <button className="app-button app-button--secondary" onClick={() => setQuickStartOpen(true)}>
-            Szybki start
+            {t("menu.quickStart")}
           </button>
-          <Button size="md" loading={logoutSubmitting} loadingLabel="Wylogowuje..." onClick={handleLogout}>
-            Wyloguj
+          <Button size="md" loading={logoutSubmitting} loadingLabel={t("menu.logoutLoading")} onClick={handleLogout}>
+            {t("menu.logout")}
           </Button>
         </>
       }
@@ -204,13 +198,13 @@ export default function MenuScreenMain() {
           </div>
         </div>
         <div>
-          <div className="menu-summary__welcome">Twoj panel roboczy</div>
+          <div className="menu-summary__welcome">{t("menu.workspace")}</div>
           <div className="menu-summary__name">{displayName}</div>
           <div className="menu-summary__role">
-            Rola: <strong>{roleLabelMap[role] || role || "Brak"}</strong>
+            {t("menu.role")}: <strong>{role ? t(`roles.${role}`) : t("roles.missing")}</strong>
           </div>
           <div className="menu-summary__site">
-            <span className="menu-summary__site-label">Magazyn</span>
+            <span className="menu-summary__site-label">{t("common.warehouse")}</span>
             <span className="menu-summary__site-pill">{activeSiteLabel}</span>
           </div>
         </div>
@@ -218,11 +212,11 @@ export default function MenuScreenMain() {
 
       <div className="menu-grid">
         {filteredMenu.map((item) => {
-          const Icon = iconMap[item.label];
+          const Icon = iconMap[item.key];
 
           return (
             <button
-              key={item.label}
+              key={item.key}
               className={`menu-card role-${role}`}
               onClick={() => navigate(item.path)}
             >
@@ -230,13 +224,13 @@ export default function MenuScreenMain() {
                 <Icon size={22} />
               </div>
               <div className="menu-card__content">
-                <div className="menu-card__title">{item.label}</div>
+                <div className="menu-card__title">{t(`menu.${item.key}`)}</div>
                 <div className="menu-card__desc">
-                  {item.label === "Proces" && "Operacje terenowe, skanowanie i sesje pracy"}
-                  {item.label === "Historia" && "Wyniki inwentaryzacji i przeglad operacji"}
-                  {item.label === "Dane" && "Referencje, importy i historia zmian"}
-                  {item.label === "Statystyki" && "Metryki, tempo pracy i dane finansowe"}
-                  {item.label === "Ustawienia" && "Panel administracyjny, konfiguracja i statusy"}
+                  {item.key === "process" && t("menu.processDesc")}
+                  {item.key === "history" && t("menu.historyDesc")}
+                  {item.key === "data" && t("menu.dataDesc")}
+                  {item.key === "dashboard" && t("menu.dashboardDesc")}
+                  {item.key === "settings" && t("menu.settingsDesc")}
                 </div>
               </div>
             </button>
@@ -250,10 +244,8 @@ export default function MenuScreenMain() {
             <ScanLine size={22} />
           </div>
           <div className="process-stage-header__text">
-            <h2>QR do logowania na telefonie</h2>
-            <p>
-              Zeskanuj ten kod z dowolnego komputera albo monitora, aby szybko otworzyc ekran logowania StockWise na telefonie operatora.
-            </p>
+            <h2>{t("menu.qrTitle")}</h2>
+            <p>{t("menu.qrDescription")}</p>
           </div>
         </div>
 
@@ -285,7 +277,7 @@ export default function MenuScreenMain() {
 
           <div>
             <div className="helper-note" style={{ marginBottom: 10 }}>
-              Link do logowania:
+              {t("menu.loginLink")}
             </div>
             <div
               style={{
@@ -300,7 +292,7 @@ export default function MenuScreenMain() {
               {loginUrl}
             </div>
             <div className="helper-note" style={{ marginTop: 10 }}>
-              Jesli operator pracuje na innym urzadzeniu, wystarczy zeskanowac QR i zalogowac sie standardowo.
+              {t("menu.qrHint")}
             </div>
           </div>
         </div>
@@ -312,14 +304,14 @@ export default function MenuScreenMain() {
             <div className="history-modal__header">
               <div>
                 <h2 className="process-panel__title" style={{ fontSize: 26, margin: 0 }}>
-                  Szybki start gap inventory
+                  {t("menu.quickStartTitle")}
                 </h2>
                 <p className="process-panel__subtitle">
-                  Zeskanuj najblizsza lokalizacje, a system dobierze najlepszy kierunek rozpoczecia kontroli.
+                  {t("menu.quickStartSubtitle")}
                 </p>
               </div>
               <Button variant="secondary" onClick={() => setQuickStartOpen(false)}>
-                Zamknij
+                {t("common.close")}
               </Button>
             </div>
 
@@ -328,13 +320,13 @@ export default function MenuScreenMain() {
                 <LocateFixed size={22} />
               </div>
               <div className="process-stage-header__text">
-                <h2>Lokalizacja startowa</h2>
-                <p>Moze to byc dowolna lokalizacja z mapy magazynu w poblizu miejsca, od ktorego operator chce ruszyc.</p>
+                <h2>{t("menu.startLocation")}</h2>
+                <p>{t("menu.startLocationHint")}</p>
               </div>
             </div>
 
             <div className="app-field">
-              <label className="app-field__label">Skan lokalizacji</label>
+              <label className="app-field__label">{t("menu.scanLocation")}</label>
               <div style={{ display: "flex", gap: 10, alignItems: "stretch" }}>
                 <div style={{ position: "relative", flex: 1 }}>
                   <ScanLine
@@ -343,7 +335,7 @@ export default function MenuScreenMain() {
                   />
                   <input
                     className="app-input"
-                    placeholder="Np. A.01.001.D.3"
+                    placeholder={t("menu.locationPlaceholder")}
                     value={quickStartCode}
                     onChange={(event) => setQuickStartCode(event.target.value)}
                     style={{ paddingLeft: 40 }}
@@ -355,7 +347,7 @@ export default function MenuScreenMain() {
                     type="button"
                     className="app-icon-button"
                     onClick={() => setQuickStartScannerOpen(true)}
-                    aria-label="Otworz skaner lokalizacji dla szybkiego startu"
+                    aria-label={t("menu.scanLocationAria")}
                     style={{ minWidth: 46, alignSelf: "stretch" }}
                   >
                     <ScanLine size={18} />
@@ -368,10 +360,10 @@ export default function MenuScreenMain() {
 
             <div className="process-actions" style={{ marginTop: 20 }}>
               <Button size="lg" loading={quickStartSubmitting} onClick={handleQuickStart}>
-                Uruchom szybki start
+                {t("menu.runQuickStart")}
               </Button>
               <Button variant="secondary" size="lg" onClick={() => setQuickStartOpen(false)}>
-                Anuluj
+                {t("common.cancel")}
               </Button>
             </div>
           </div>
@@ -380,8 +372,8 @@ export default function MenuScreenMain() {
 
       <BarcodeScannerModal
         open={quickStartScannerOpen}
-        title="Skanuj lokalizacje startowa"
-        description="Zeskanuj kod lokalizacji aparatem telefonu albo wgraj zdjecie, aby od razu uruchomic szybki start pustych lokalizacji."
+        title={t("menu.scanModalTitle")}
+        description={t("menu.scanModalDescription")}
         formats={scannerConfig.fields?.location?.formats || []}
         preferBackCamera={Boolean(scannerConfig.preferBackCamera)}
         autoCloseOnSuccess={Boolean(scannerConfig.autoCloseOnSuccess)}
@@ -391,7 +383,7 @@ export default function MenuScreenMain() {
       <LoadingOverlay
         open={logoutSubmitting}
         fullscreen
-        message="Zamykam sesje i wylogowuje operatora ze StockWise..."
+        message={t("menu.sessionLogoutMessage")}
       />
     </PageShell>
   );

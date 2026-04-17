@@ -270,8 +270,8 @@ export default function EmptyLocationProcess() {
 
     const quantity = Number(surplusData.quantity);
 
-    if (!surplusData.sku.trim()) {
-      setError("SKU jest wymagane");
+    if (!surplusData.sku.trim() && !surplusData.ean.trim()) {
+      setError("Podaj SKU albo EAN");
       return;
     }
 
@@ -308,7 +308,7 @@ export default function EmptyLocationProcess() {
       }
 
       payload.sku = resolvedProduct.sku;
-      payload.ean = payload.ean || resolvedProduct.ean || null;
+      payload.ean = payload.ean || resolvedProduct.matched_barcode || resolvedProduct.ean || null;
 
       await reportLocationSurplus({
         location: currentLocation,

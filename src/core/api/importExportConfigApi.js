@@ -1,6 +1,7 @@
 import { supabase } from "./supabaseClient";
 import { getDefaultImportExportMapping } from "../config/importExportDefaults";
 import { getMappedExportColumns, mergeImportExportMapping } from "../utils/importExportMapping";
+import { fetchProductCatalog, joinBarcodeValues, getProductBarcodeValues } from "./productCatalogApi";
 
 function mapSampleRow(entityKey, row) {
   if (!row) return null;
@@ -18,6 +19,9 @@ function mapSampleRow(entityKey, row) {
         location: row.locations?.code || row.location || "",
         zone: row.locations?.zone || row.zone || "",
         sku: row.products?.sku || row.sku || "",
+        ean: row.barcode_value || row.ean || "",
+        lot: row.lot || "",
+        expiry_date: row.expiry_date || "",
         quantity: Number(row.quantity || 0),
       };
     case "prices":
@@ -162,17 +166,29 @@ export async function fetchImportExportPreviewSample(entityKey, mapping) {
   let row = null;
 
   if (entityKey === "products") {
-    const result = await supabase.from("products").select("sku, ean, name, status").limit(1).maybeSingle();
+    const [result, catalog] = await Promise.all([
+      supabase.from("products").select("id, sku, ean, name, status").limit(1).maybeSingle(),
+      fetchProductCatalog().catch(() => null),
+    ]);
     if (result.error) throw new Error(result.error.message || "Nie udalo sie pobrac probki produktow");
-    row = mapSampleRow(entityKey, result.data);
+    row = mapSampleRow(entityKey, {
+      ...result.data,
+      ean:
+        (catalog && result.data?.id
+          ? joinBarcodeValues(getProductBarcodeValues(catalog, result.data.id))
+          : null) || result.data?.ean || "",
+    });
   } else if (entityKey === "stock") {
     const result = await supabase
       .from("stock")
-      .select("quantity, locations:location_id(code, zone), products:product_id(sku)")
+      .select("quantity, lot, expiry_date, barcode_value, locations:location_id(code, zone), products:product_id(id, sku)")
       .limit(1)
       .maybeSingle();
     if (result.error) throw new Error(result.error.message || "Nie udalo sie pobrac probki stocku");
-    row = mapSampleRow(entityKey, result.data);
+    row = mapSampleRow(entityKey, {
+      ...result.data,
+      ean: result.data?.barcode_value || "",
+    });
   } else if (entityKey === "prices") {
     const result = await supabase
       .from("prices")

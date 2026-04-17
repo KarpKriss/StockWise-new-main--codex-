@@ -1,17 +1,28 @@
 import { supabase } from "./supabaseClient";
 import { createImportLog } from "./importLogsApi";
 import { applySiteFilter, ensureRowsScoped, readActiveSiteId } from "../auth/siteScope";
+import {
+  fetchProductCatalog,
+  getPrimaryProductBarcode,
+  getProductBarcodeValues,
+  joinBarcodeValues,
+  normalizeCatalogCode,
+  upsertImportedProducts,
+} from "./productCatalogApi";
 
 function normalizeSort(sortKey, fallback = "sku") {
   return sortKey || fallback;
 }
 
 export async function fetchStockRows({ search = "", sortKey = "location", siteId = readActiveSiteId() } = {}) {
-  const [{ data: stock, error }, { data: products }, { data: locations }] =
+  const [{ data: stock, error }, { data: locations, error: locationsError }, catalog] =
     await Promise.all([
-      applySiteFilter(supabase.from("stock").select("id, location_id, product_id, quantity"), siteId),
-      applySiteFilter(supabase.from("products").select("id, sku"), siteId),
+      applySiteFilter(
+        supabase.from("stock").select("id, location_id, product_id, quantity, lot, expiry_date, barcode_value"),
+        siteId
+      ),
       applySiteFilter(supabase.from("locations").select("id, code, zone"), siteId),
+      fetchProductCatalog(siteId),
     ]);
 
   if (error) {
@@ -19,14 +30,22 @@ export async function fetchStockRows({ search = "", sortKey = "location", siteId
     throw new Error("Blad pobierania stocku");
   }
 
-  const productMap = Object.fromEntries((products || []).map((item) => [item.id, item]));
+  if (locationsError) {
+    console.error("FETCH STOCK LOCATIONS ERROR:", locationsError);
+    throw new Error("Blad pobierania mapy lokalizacji");
+  }
+
   const locationMap = Object.fromEntries((locations || []).map((item) => [item.id, item]));
 
   let rows = (stock || []).map((row) => ({
     id: row.id,
     location: locationMap[row.location_id]?.code || "BRAK",
     zone: locationMap[row.location_id]?.zone || "",
-    sku: productMap[row.product_id]?.sku || "BRAK",
+    sku: catalog.productsById.get(row.product_id)?.sku || "BRAK",
+    ean: row.barcode_value || getPrimaryProductBarcode(catalog, row.product_id) || "",
+    barcodes: joinBarcodeValues(getProductBarcodeValues(catalog, row.product_id)),
+    lot: row.lot || "",
+    expiry_date: row.expiry_date || "",
     quantity: Number(row.quantity || 0),
   }));
 
@@ -35,7 +54,9 @@ export async function fetchStockRows({ search = "", sortKey = "location", siteId
     rows = rows.filter(
       (row) =>
         row.location.toLowerCase().includes(needle) ||
-        row.sku.toLowerCase().includes(needle)
+        row.sku.toLowerCase().includes(needle) ||
+        String(row.ean || "").toLowerCase().includes(needle) ||
+        String(row.lot || "").toLowerCase().includes(needle)
     );
   }
 
@@ -54,7 +75,13 @@ export async function fetchStockRows({ search = "", sortKey = "location", siteId
 export async function replaceStock(validRows, siteId = readActiveSiteId()) {
   const mergedRows = Array.from(
     validRows.reduce((accumulator, row) => {
-      const key = `${row.location_id}::${row.product_id}`;
+      const key = [
+        row.location_id,
+        row.product_id,
+        normalizeCatalogCode(row.barcode_value || ""),
+        normalizeCatalogCode(row.lot || ""),
+        row.expiry_date || "",
+      ].join("::");
       const existing = accumulator.get(key);
 
       if (existing) {
@@ -63,6 +90,9 @@ export async function replaceStock(validRows, siteId = readActiveSiteId()) {
         accumulator.set(key, {
           location_id: row.location_id,
           product_id: row.product_id,
+          barcode_value: row.barcode_value || null,
+          lot: row.lot || null,
+          expiry_date: row.expiry_date || null,
           quantity: Number(row.quantity || 0),
         });
       }
@@ -327,17 +357,23 @@ export async function insertNewPrices(rows, siteId = readActiveSiteId()) {
 }
 
 export async function fetchProductRows({ search = "", sortKey = "sku", siteId = readActiveSiteId() } = {}) {
-  const { data, error } = await applySiteFilter(
-    supabase.from("products").select("id, sku, ean, name, status"),
-    siteId
-  );
+  const [{ data, error }, catalog] = await Promise.all([
+    applySiteFilter(
+      supabase.from("products").select("id, sku, ean, name, status"),
+      siteId
+    ),
+    fetchProductCatalog(siteId),
+  ]);
 
   if (error) {
     console.error("FETCH PRODUCTS ERROR:", error);
     throw new Error("Blad pobierania produktow");
   }
 
-  let rows = data || [];
+  let rows = (data || []).map((row) => ({
+    ...row,
+    ean: joinBarcodeValues(getProductBarcodeValues(catalog, row.id)) || row.ean || "",
+  }));
 
   if (search.trim()) {
     const needle = search.trim().toLowerCase();
@@ -355,27 +391,23 @@ export async function fetchProductRows({ search = "", sortKey = "sku", siteId = 
 }
 
 export async function insertProducts(rows, siteId = readActiveSiteId()) {
-  const { data: existing } = await applySiteFilter(
-    supabase.from("products").select("sku"),
-    siteId
-  );
-  const existingSkus = new Set((existing || []).map((row) => row.sku));
-  const newRows = rows.filter((row) => !existingSkus.has(row.sku));
-
-  if (newRows.length > 0) {
-    const { error } = await supabase.from("products").insert(ensureRowsScoped(newRows, siteId));
-
-    if (error) {
-      console.error("INSERT PRODUCTS ERROR:", error);
-      throw new Error(error.message || "Blad importu produktow");
-    }
-  }
+  const result = await upsertImportedProducts(rows, siteId);
 
   await createImportLog("products");
-  return { inserted: newRows.length, skipped: rows.length - newRows.length };
+  return result;
 }
 
 export async function deleteProductRow(id, siteId = readActiveSiteId()) {
+  const { error: deleteBarcodesError } = await applySiteFilter(
+    supabase.from("product_barcodes").delete().eq("product_id", id),
+    siteId
+  );
+
+  if (deleteBarcodesError && !String(deleteBarcodesError.message || "").includes("product_barcodes")) {
+    console.error("DELETE PRODUCT BARCODES ERROR:", deleteBarcodesError);
+    throw new Error(deleteBarcodesError.message || "Blad usuwania kodow powiazanych z produktem");
+  }
+
   const { error: deletePricesError } = await applySiteFilter(
     supabase.from("prices").delete().eq("product_id", id),
     siteId
@@ -408,6 +440,16 @@ export async function deleteProductRow(id, siteId = readActiveSiteId()) {
 }
 
 export async function resetProducts(siteId = readActiveSiteId()) {
+  const { error: deleteBarcodesError } = await applySiteFilter(
+    supabase.from("product_barcodes").delete(),
+    siteId
+  ).not("id", "is", null);
+
+  if (deleteBarcodesError && !String(deleteBarcodesError.message || "").includes("product_barcodes")) {
+    console.error("RESET PRODUCT BARCODES ERROR:", deleteBarcodesError);
+    throw new Error(deleteBarcodesError.message || "Blad resetowania kodow produktow");
+  }
+
   const { error: deletePricesError } = await applySiteFilter(
     supabase.from("prices").delete(),
     siteId

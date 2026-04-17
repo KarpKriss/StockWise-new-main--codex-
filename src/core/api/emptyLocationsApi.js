@@ -1,6 +1,7 @@
 import { supabase } from "./supabaseClient";
 import { reportInventoryProblem } from "./problemsApi";
 import { applySiteFilter, normalizeSiteId } from "../auth/siteScope";
+import { resolveProductBySkuOrBarcode } from "./productCatalogApi";
 
 function unwrapRpcRows(data) {
   if (Array.isArray(data)) {
@@ -246,25 +247,21 @@ export async function resolveProductForSurplus({ sku, ean, siteId } = {}) {
   const normalizedSku = String(sku || "").trim();
   const normalizedEan = String(ean || "").trim();
   const safeSiteId = normalizeSiteId(siteId);
-  let query = applySiteFilter(
-    supabase.from("products").select("id, sku, ean").limit(1),
-    safeSiteId
-  );
 
-  if (normalizedSku) {
-    query = query.eq("sku", normalizedSku);
-  } else if (normalizedEan) {
-    query = query.eq("ean", normalizedEan);
-  } else {
+  if (!normalizedSku && !normalizedEan) {
     return null;
   }
 
-  const { data, error } = await query.maybeSingle();
+  const { product, matchedBarcode } = await resolveProductBySkuOrBarcode({
+    sku: normalizedSku,
+    barcode: normalizedEan,
+    siteId: safeSiteId,
+  });
 
-  if (error) {
-    console.error("RESOLVE PRODUCT FOR SURPLUS ERROR:", error);
-    throw new Error(error.message || "Blad walidacji produktu");
-  }
-
-  return data || null;
+  return product
+    ? {
+        ...product,
+        matched_barcode: matchedBarcode?.code_value || null,
+      }
+    : null;
 }

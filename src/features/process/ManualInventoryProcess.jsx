@@ -355,7 +355,9 @@ export default function ManualInventoryProcess() {
       setSessionZone(resolvedZone);
       setCurrentZone(resolvedZone);
       setLocationInput(location.code || "");
-      setLocationStock(await fetchLocationStockSnapshot(location.id, Number(validationConfig.fetchRetries || 2)));
+      setLocationStock(
+        await fetchLocationStockSnapshot(location.id, Number(validationConfig.fetchRetries || 2), user?.site_id)
+      );
       setSavedCountForLocation(0);
       setProblemNote("");
       resetForm();
@@ -400,6 +402,7 @@ export default function ManualInventoryProcess() {
     const product = await resolveManualProduct({
       sku: form.sku,
       ean: form.ean,
+      siteId: user?.site_id,
     });
 
     const lotRegex = new RegExp(validationConfig.lotPattern || "^[A-Za-z0-9._/-]{1,50}$");
@@ -438,9 +441,12 @@ export default function ManualInventoryProcess() {
 
     const stockMatch = locationStock.find(
       (row) =>
-        row.productId === product.id ||
-        (row.sku && row.sku === product.sku) ||
-        (row.ean && product.ean && row.ean === product.ean)
+        (
+          row.productId === product.id ||
+          (row.sku && row.sku === product.sku) ||
+          (row.ean && (product.matched_barcode || product.ean) && row.ean === (product.matched_barcode || product.ean))
+        ) &&
+        (!form.lot || !row.lot || row.lot === form.lot)
     );
 
     if (!stockMatch) {
@@ -486,7 +492,7 @@ export default function ManualInventoryProcess() {
         operation_id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
         location: currentLocation.code,
-        ean: form.ean || product.ean || null,
+        ean: form.ean || product.matched_barcode || product.ean || null,
         sku: product.sku,
         lot: form.lot || null,
         expiry: form.expiry || null,

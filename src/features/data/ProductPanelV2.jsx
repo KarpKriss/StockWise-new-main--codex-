@@ -82,7 +82,7 @@ export default function ProductsPanel() {
       setImporting(true);
       const result = await insertProducts(preview.valid);
       alert(
-        `Dodano ${result.inserted} nowych produktow, pominieto ${result.skipped}. Bledne rekordy nie zostaly zaimportowane.`
+        `Dodano ${result.inserted} nowych produktow, zaktualizowano ${result.updated || 0}, pominieto ${result.skipped || 0}. Bledne rekordy nie zostaly zaimportowane.`
       );
       setPreview(null);
       loadProducts();
@@ -155,7 +155,7 @@ export default function ProductsPanel() {
         title="Produkty"
         columns={[
           { key: "sku", label: "SKU" },
-          { key: "ean", label: "EAN" },
+          { key: "ean", label: "EAN / kody" },
           { key: "name", label: "Nazwa" },
           { key: "status", label: "Status" },
         ]}
@@ -177,7 +177,7 @@ export default function ProductsPanel() {
         }
         onDelete={openDeleteConfirm}
         pageSize={25}
-        searchPlaceholder="Szukaj po SKU, EAN lub nazwie..."
+        searchPlaceholder="Szukaj po SKU, EAN, kodzie lub nazwie..."
       />
 
       {preview && (
@@ -187,7 +187,7 @@ export default function ProductsPanel() {
           preview={preview}
           columns={[
             { key: "sku", label: "SKU" },
-            { key: "ean", label: "EAN" },
+            { key: "ean", label: "EAN / kody" },
             { key: "name", label: "Nazwa" },
             { key: "status", label: "Status" },
           ]}

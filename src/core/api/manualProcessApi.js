@@ -2,6 +2,8 @@ import { supabase } from "./supabaseClient";
 import { saveEntry } from "./entriesApi";
 import { markLocationOnWork, releaseLocationWork } from "./emptyLocationsApi";
 import { reportInventoryProblem } from "./problemsApi";
+import { normalizeSiteId } from "../auth/siteScope";
+import { fetchProductCatalog, getPrimaryProductBarcode, resolveProductBySkuOrBarcode } from "./productCatalogApi";
 import {
   DEFAULT_MANUAL_PROCESS_CONFIG,
   normalizeManualProcessConfig,
@@ -9,19 +11,6 @@ import {
 
 const BUFFER_KEY = "stockwise-manual-buffer";
 const DEFAULT_CONFIG = DEFAULT_MANUAL_PROCESS_CONFIG;
-
-function normalizeUuidLike(value) {
-  const normalized = String(value || "").trim();
-
-  if (!normalized) {
-    return null;
-  }
-
-  const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-  return uuidRegex.test(normalized) ? normalized : null;
-}
 
 export async function fetchManualProcessConfig(siteId) {
   let query = supabase
@@ -75,7 +64,7 @@ export async function validateManualLocation({
     throw new Error("Najpierw zeskanuj lub wpisz lokalizacje");
   }
 
-  const safeSiteId = normalizeUuidLike(siteId);
+  const safeSiteId = normalizeSiteId(siteId);
 
   const location = await withRetries(async () => {
     let query = supabase
@@ -172,7 +161,7 @@ export async function reportManualLocationProblem({
   });
 }
 
-export async function resolveManualProduct({ sku, ean }) {
+export async function resolveManualProduct({ sku, ean, siteId }) {
   const normalizedSku = String(sku || "").trim();
   const normalizedEan = String(ean || "").trim();
 
@@ -180,36 +169,28 @@ export async function resolveManualProduct({ sku, ean }) {
     throw new Error("SKU jest wymagane");
   }
 
-  let query = supabase
-    .from("products")
-    .select("id, sku, ean")
-    .limit(1);
+  const { product, matchedBarcode } = await resolveProductBySkuOrBarcode({
+    sku: normalizedSku,
+    barcode: normalizedEan,
+    siteId,
+  });
 
-  if (normalizedSku) {
-    query = query.eq("sku", normalizedSku);
-  } else {
-    query = query.eq("ean", normalizedEan);
-  }
-
-  const { data, error } = await query.maybeSingle();
-
-  if (error) {
-    console.error("RESOLVE MANUAL PRODUCT ERROR:", error);
-    throw new Error(error.message || "Blad walidacji SKU");
-  }
-
-  if (!data) {
+  if (!product) {
     throw new Error("Nieznane SKU lub EAN");
   }
 
-  return data;
+  return {
+    ...product,
+    matched_barcode: matchedBarcode?.code_value || null,
+  };
 }
 
-export async function fetchLocationStockSnapshot(locationId, retries = 2) {
-  const data = await withRetries(async () => {
+export async function fetchLocationStockSnapshot(locationId, retries = 2, siteId) {
+  const [data, catalog] = await Promise.all([
+    withRetries(async () => {
     const { data: rows, error } = await supabase
       .from("stock")
-      .select("quantity, product_id, products:product_id(id, sku, ean)")
+      .select("quantity, lot, expiry_date, barcode_value, product_id")
       .eq("location_id", locationId);
 
     if (error) {
@@ -218,12 +199,16 @@ export async function fetchLocationStockSnapshot(locationId, retries = 2) {
     }
 
     return rows || [];
-  }, retries);
+    }, retries),
+    fetchProductCatalog(siteId).catch(() => null),
+  ]);
 
   return data.map((row) => ({
     productId: row.product_id,
-    sku: row.products?.sku || null,
-    ean: row.products?.ean || null,
+    sku: catalog?.productsById.get(row.product_id)?.sku || null,
+    ean: row.barcode_value || getPrimaryProductBarcode(catalog, row.product_id) || null,
+    lot: row.lot || null,
+    expiry_date: row.expiry_date || null,
     quantity: Number(row.quantity) || 0,
   }));
 }

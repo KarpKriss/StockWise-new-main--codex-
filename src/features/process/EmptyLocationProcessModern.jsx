@@ -568,8 +568,8 @@ export default function EmptyLocationProcessModern() {
 
     const quantity = Number(surplusData.quantity);
 
-    if (!surplusData.sku.trim()) {
-      setError("SKU jest wymagane.");
+    if (!surplusData.sku.trim() && !surplusData.ean.trim()) {
+      setError("Podaj SKU albo EAN.");
       return;
     }
 
@@ -592,7 +592,7 @@ export default function EmptyLocationProcessModern() {
       }
 
       const normalizedPayload = {
-        ean: surplusData.ean || resolvedProduct.ean || null,
+        ean: surplusData.ean || resolvedProduct.matched_barcode || resolvedProduct.ean || null,
         sku: resolvedProduct.sku,
         lot: surplusData.lot || null,
         quantity,

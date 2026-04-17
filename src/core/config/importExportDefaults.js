@@ -2,18 +2,18 @@ export const IMPORT_EXPORT_ENTITIES = {
   products: {
     key: "products",
     title: "Produkty",
-    description: "Mapowanie plikow z indeksami SKU, EAN i nazwami referencyjnymi.",
+    description: "Mapowanie plikow z indeksami SKU, wieloma kodami EAN i nazwami referencyjnymi.",
     supportsImport: true,
     supportsExport: true,
     importFields: [
       { key: "sku", label: "SKU", required: true, aliases: ["sku"] },
-      { key: "ean", label: "EAN", required: false, aliases: ["ean"] },
+      { key: "ean", label: "EAN / kody", required: false, aliases: ["ean", "barcodes", "ean_list", "kody"] },
       { key: "name", label: "Nazwa", required: false, aliases: ["name", "nazwa"] },
       { key: "status", label: "Status", required: false, aliases: ["status"] },
     ],
     exportFields: [
       { key: "sku", label: "SKU" },
-      { key: "ean", label: "EAN" },
+      { key: "ean", label: "EAN / kody" },
       { key: "name", label: "Nazwa" },
       { key: "status", label: "Status" },
     ],
@@ -21,12 +21,15 @@ export const IMPORT_EXPORT_ENTITIES = {
   stock: {
     key: "stock",
     title: "Stock",
-    description: "Mapowanie stanów magazynowych po lokalizacji, SKU i ilości.",
+    description: "Mapowanie stanow magazynowych po lokalizacji, SKU lub EAN, LOT i ilosci.",
     supportsImport: true,
     supportsExport: true,
     importFields: [
       { key: "location_code", label: "Lokalizacja", required: true, aliases: ["location_code", "location", "lokalizacja"] },
-      { key: "sku", label: "SKU", required: true, aliases: ["sku"] },
+      { key: "sku", label: "SKU", required: false, aliases: ["sku"] },
+      { key: "ean", label: "EAN", required: false, aliases: ["ean", "barcode", "kod"] },
+      { key: "lot", label: "LOT", required: false, aliases: ["lot", "batch", "partia"] },
+      { key: "expiry_date", label: "Data waznosci", required: false, aliases: ["expiry_date", "expiry", "data_waznosci"] },
       { key: "quantity", label: "Ilosc", required: true, aliases: ["quantity", "ilosc", "qty"] },
       { key: "zone", label: "Strefa", required: false, aliases: ["zone", "strefa"] },
     ],
@@ -34,6 +37,9 @@ export const IMPORT_EXPORT_ENTITIES = {
       { key: "location", label: "Lokalizacja" },
       { key: "zone", label: "Strefa" },
       { key: "sku", label: "SKU" },
+      { key: "ean", label: "EAN" },
+      { key: "lot", label: "LOT" },
+      { key: "expiry_date", label: "Data waznosci" },
       { key: "quantity", label: "Ilosc" },
     ],
   },
@@ -122,4 +128,3 @@ export function getDefaultImportExportMapping() {
     }, {}),
   };
 }
-

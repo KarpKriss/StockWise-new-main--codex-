@@ -108,6 +108,9 @@ export default function StockPanel() {
         columns={[
           { key: "location", label: "Lokalizacja" },
           { key: "sku", label: "SKU" },
+          { key: "ean", label: "EAN" },
+          { key: "lot", label: "LOT" },
+          { key: "expiry_date", label: "Data waznosci" },
           { key: "quantity", label: "Ilosc" },
         ]}
         data={filteredRows}
@@ -128,7 +131,7 @@ export default function StockPanel() {
           })
         }
         pageSize={25}
-        searchPlaceholder="Szukaj po lokalizacji lub SKU..."
+        searchPlaceholder="Szukaj po lokalizacji, SKU, EAN lub LOT..."
       />
 
       {preview && (
@@ -139,6 +142,9 @@ export default function StockPanel() {
           columns={[
             { key: "location_code", label: "Lokalizacja" },
             { key: "sku", label: "SKU" },
+            { key: "ean", label: "EAN" },
+            { key: "lot", label: "LOT" },
+            { key: "expiry_date", label: "Data waznosci" },
             { key: "quantity", label: "Ilosc" },
             { key: "zone", label: "Strefa" },
           ]}

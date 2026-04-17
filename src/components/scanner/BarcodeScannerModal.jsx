@@ -52,10 +52,23 @@ function resolveSupportedFormats(formats) {
 }
 
 async function startScannerInstance({ scanner, preferBackCamera, onDetected }) {
-  const onDecode = (decodedText) => {
+  const onDecode = (decodedText, decodedResult) => {
     const normalizedValue = String(decodedText || "").trim();
     if (normalizedValue) {
-      onDetected(normalizedValue);
+      const rawFormat =
+        decodedResult?.result?.format?.formatName ||
+        decodedResult?.result?.format?.format ||
+        decodedResult?.format?.formatName ||
+        decodedResult?.format?.format ||
+        decodedResult?.decodedResult?.format?.formatName ||
+        decodedResult?.decodedResult?.format?.format ||
+        null;
+
+      onDetected(normalizedValue, {
+        rawFormat: rawFormat ? String(rawFormat).trim() : null,
+        decodedResult: decodedResult || null,
+        source: "camera",
+      });
     }
   };
 
@@ -104,6 +117,7 @@ export default function BarcodeScannerModal({
   preferBackCamera = true,
   autoCloseOnSuccess = true,
   onDetected,
+  onDetectedDetail = null,
   onClose,
 }) {
   const reactId = useId();
@@ -139,12 +153,18 @@ export default function BarcodeScannerModal({
         await startScannerInstance({
           scanner,
           preferBackCamera,
-          onDetected: (value) => {
+          onDetected: (value, details) => {
             if (!activeRef.current) {
               return;
             }
 
             onDetected(value);
+            if (typeof onDetectedDetail === "function") {
+              onDetectedDetail({
+                value,
+                ...(details || {}),
+              });
+            }
             if (autoCloseOnSuccess) {
               onClose();
             }
@@ -191,7 +211,7 @@ export default function BarcodeScannerModal({
           .catch(() => {});
       }
     };
-  }, [open, readerId, formats, preferBackCamera, onDetected, onClose, autoCloseOnSuccess]);
+  }, [open, readerId, formats, preferBackCamera, onDetected, onDetectedDetail, onClose, autoCloseOnSuccess]);
 
   async function handleFileScan(event) {
     const file = event.target.files?.[0];
@@ -203,14 +223,42 @@ export default function BarcodeScannerModal({
       setError("");
       const scanner = scannerRef.current || new window.Html5Qrcode(readerId);
       scannerRef.current = scanner;
-      const result = await scanner.scanFile(file, true);
-      const normalizedValue = String(result || "").trim();
+      let normalizedValue = "";
+      let details = {
+        rawFormat: null,
+        decodedResult: null,
+        source: "file",
+      };
+
+      if (typeof scanner.scanFileV2 === "function") {
+        const result = await scanner.scanFileV2(file, true);
+        normalizedValue = String(result?.decodedText || "").trim();
+        details = {
+          rawFormat:
+            result?.result?.format?.formatName ||
+            result?.result?.format?.format ||
+            result?.format?.formatName ||
+            result?.format?.format ||
+            null,
+          decodedResult: result || null,
+          source: "file",
+        };
+      } else {
+        const result = await scanner.scanFile(file, true);
+        normalizedValue = String(result || "").trim();
+      }
 
       if (!normalizedValue) {
         throw new Error("Na zdjeciu nie wykryto zadnego kodu.");
       }
 
       onDetected(normalizedValue);
+      if (typeof onDetectedDetail === "function") {
+        onDetectedDetail({
+          value: normalizedValue,
+          ...details,
+        });
+      }
       if (autoCloseOnSuccess) {
         onClose();
       }

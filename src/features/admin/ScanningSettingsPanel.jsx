@@ -1,6 +1,7 @@
 import { Camera, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import LoadingOverlay from "../../components/loaders/LoadingOverlay";
+import BarcodeScannerModal from "../../components/scanner/BarcodeScannerModal";
 import PageShell from "../../components/layout/PageShell";
 import Button from "../../components/ui/Button";
 import { useAuth } from "../../core/auth/AppAuth";
@@ -21,6 +22,10 @@ const FIELD_LABELS = {
   sku: "SKU",
   lot: "LOT",
 };
+
+const FORMAT_LABELS = Object.fromEntries(
+  SCAN_FORMAT_OPTIONS.map((option) => [option.value, option.label])
+);
 
 function Toggle({ label, checked, onChange, disabled = false, help = "" }) {
   return (
@@ -49,6 +54,8 @@ export default function ScanningSettingsPanel() {
   const [error, setError] = useState("");
   const [saveInfo, setSaveInfo] = useState("");
   const [dataSource, setDataSource] = useState("default");
+  const [diagnosticScannerOpen, setDiagnosticScannerOpen] = useState(false);
+  const [diagnosticResult, setDiagnosticResult] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,6 +179,35 @@ export default function ScanningSettingsPanel() {
     }
   }
 
+  function normalizeDetectedFormat(rawFormat) {
+    const normalized = String(rawFormat || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, "_");
+
+    return normalized || null;
+  }
+
+  function handleDiagnosticDetected(value) {
+    setDiagnosticResult((current) => ({
+      ...(current || {}),
+      value: String(value || "").trim(),
+    }));
+  }
+
+  function handleDiagnosticDetectedDetail(details) {
+    const normalizedFormat = normalizeDetectedFormat(details?.rawFormat);
+
+    setDiagnosticResult({
+      value: String(details?.value || "").trim(),
+      rawFormat: details?.rawFormat || null,
+      normalizedFormat,
+      formatLabel: normalizedFormat ? FORMAT_LABELS[normalizedFormat] || normalizedFormat : null,
+      supported: Boolean(normalizedFormat && FORMAT_LABELS[normalizedFormat]),
+      source: details?.source || "camera",
+    });
+  }
+
   return (
     <PageShell
       title="Skanowanie"
@@ -241,6 +277,52 @@ export default function ScanningSettingsPanel() {
           </div>
 
           <div className="app-card" style={{ marginTop: 18 }}>
+            <div className="scanner-diagnostic-bar">
+              <div className="scanner-diagnostic-bar__copy">
+                <div className="scanner-diagnostic-bar__title">Nie wiesz, jakiego formatu masz kod?</div>
+                <div className="scanner-diagnostic-bar__text">
+                  Sprawdz to tutaj. Uruchom aparat, zeskanuj kod i zobacz, jaki format rozpoznaje aktualna biblioteka skanera.
+                </div>
+              </div>
+
+              <div className="scanner-diagnostic-bar__actions">
+                <Button type="button" variant="secondary" size="md" onClick={() => setDiagnosticScannerOpen(true)}>
+                  <Camera size={16} />
+                  Sprawdz format kodu
+                </Button>
+              </div>
+            </div>
+
+            {diagnosticResult ? (
+              <div className="scanner-diagnostic-result">
+                <div className="scanner-diagnostic-result__row">
+                  <span>Odczytana wartosc</span>
+                  <strong>{diagnosticResult.value || "-"}</strong>
+                </div>
+                <div className="scanner-diagnostic-result__row">
+                  <span>Rozpoznany format</span>
+                  <strong>
+                    {diagnosticResult.formatLabel ||
+                      "Biblioteka odczytala kod, ale nie zwrocila jednoznacznej nazwy formatu."}
+                  </strong>
+                </div>
+                <div className="scanner-diagnostic-result__row">
+                  <span>Status obslugi</span>
+                  <strong>
+                    {diagnosticResult.supported
+                      ? "Format jest obslugiwany i mozna go przypisac do pola procesu."
+                      : "Tego formatu nie ma na aktualnej liscie albo biblioteka go nie raportuje."}
+                  </strong>
+                </div>
+              </div>
+            ) : (
+              <div className="helper-note" style={{ marginTop: 12 }}>
+                Po skanowaniu zobaczysz tutaj nazwe formatu albo informacje, ze obecna biblioteka nie potrafi go jednoznacznie okreslic.
+              </div>
+            )}
+          </div>
+
+          <div className="app-card" style={{ marginTop: 18 }}>
             <h3>Pola procesu</h3>
             <p className="helper-note">
               Dla kazdego pola wybierasz, czy pokazujemy ikonę aparatu i jakie typy kodow sa akceptowane.
@@ -301,6 +383,17 @@ export default function ScanningSettingsPanel() {
         open={saving}
         fullscreen
         message="Zapisuje ustawienia skanowania i aktualizuje konfiguracje pol procesu..."
+      />
+      <BarcodeScannerModal
+        open={diagnosticScannerOpen}
+        title="Sprawdz format kodu"
+        description="Zeskanuj kod aparatem albo wgraj zdjecie. Po odczycie pokazemy wykryty format albo informacje, ze obecna biblioteka go nie raportuje."
+        formats={[]}
+        preferBackCamera={Boolean(scanning.preferBackCamera)}
+        autoCloseOnSuccess
+        onDetected={handleDiagnosticDetected}
+        onDetectedDetail={handleDiagnosticDetectedDetail}
+        onClose={() => setDiagnosticScannerOpen(false)}
       />
     </PageShell>
   );

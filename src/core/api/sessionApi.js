@@ -8,6 +8,16 @@ async function cleanupSessions() {
 
   if (error) {
     console.error('CLEANUP ERROR:', error);
+
+    // Nie blokujemy operatora, jeśli globalny cleanup starych sesji timeoutuje.
+    // Start procesu i tak zamyka aktywne sesje bieżącego użytkownika osobnym krokiem.
+    if (
+      error.code === '57014' ||
+      error.message?.includes('statement timeout')
+    ) {
+      return;
+    }
+
     throw new Error('Błąd czyszczenia sesji');
   }
 }

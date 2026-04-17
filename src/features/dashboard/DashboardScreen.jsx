@@ -199,6 +199,23 @@ export default function DashboardScreen() {
       })[0] || null
     );
   }, [enhancedZoneStats, selectedZone]);
+  const topRiskZones = useMemo(
+    () =>
+      [...enhancedZoneStats]
+        .sort((left, right) => {
+          if (left.health.score !== right.health.score) {
+            return left.health.score - right.health.score;
+          }
+
+          if (right.problems_count !== left.problems_count) {
+            return right.problems_count - left.problems_count;
+          }
+
+          return right.total_locations - left.total_locations;
+        })
+        .slice(0, 3),
+    [enhancedZoneStats]
+  );
 
   useEffect(() => {
     if (!enhancedZoneStats.length) {
@@ -374,6 +391,62 @@ export default function DashboardScreen() {
 
             {enhancedZoneStats.length ? (
               <div className="dashboard-zone-experience">
+                <div className="dashboard-zone-topbar">
+                  <div className="dashboard-zone-legend">
+                    <div>
+                      <h3>{t("dashboard.zoneLegendTitle")}</h3>
+                      <p>{t("dashboard.zoneLegendSubtitle")}</p>
+                    </div>
+                    <div className="dashboard-zone-legend__items">
+                      <div className="dashboard-zone-legend__item">
+                        <span className="dashboard-zone-legend__swatch dashboard-zone-legend__swatch--clear" />
+                        <span>{t("dashboard.zoneLegendClear")}</span>
+                      </div>
+                      <div className="dashboard-zone-legend__item">
+                        <span className="dashboard-zone-legend__swatch dashboard-zone-legend__swatch--stable" />
+                        <span>{t("dashboard.zoneLegendStable")}</span>
+                      </div>
+                      <div className="dashboard-zone-legend__item">
+                        <span className="dashboard-zone-legend__swatch dashboard-zone-legend__swatch--watch" />
+                        <span>{t("dashboard.zoneLegendWatch")}</span>
+                      </div>
+                      <div className="dashboard-zone-legend__item">
+                        <span className="dashboard-zone-legend__swatch dashboard-zone-legend__swatch--critical" />
+                        <span>{t("dashboard.zoneLegendCritical")}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="dashboard-zone-alert-strip">
+                    <div className="dashboard-zone-alert-strip__header">
+                      <h3>{t("dashboard.zoneTopRiskTitle")}</h3>
+                      <p>{t("dashboard.zoneTopRiskSubtitle")}</p>
+                    </div>
+                    <div className="dashboard-zone-alert-strip__items">
+                      {topRiskZones.map((zone, index) => (
+                        <button
+                          key={zone.zone}
+                          type="button"
+                          className={`dashboard-zone-alert dashboard-zone-alert--${zone.health.tone}`}
+                          onClick={() => setSelectedZone(zone.zone)}
+                        >
+                          <span className="dashboard-zone-alert__rank">#{index + 1}</span>
+                          <div className="dashboard-zone-alert__main">
+                            <strong>{zone.zone}</strong>
+                            <span>{t(zone.health.labelKey)} · {zone.health.score}/100</span>
+                          </div>
+                          <div className="dashboard-zone-alert__meta">
+                            {t("dashboard.zoneTopRiskImpact", {
+                              locations: formatNumber(zone.total_locations),
+                              issues: formatNumber(zone.problems_count),
+                            })}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="dashboard-zone-heatmap">
                   {enhancedZoneStats.map((zone) => {
                     const isActive = zone.zone === selectedZoneStats?.zone;
@@ -384,7 +457,7 @@ export default function DashboardScreen() {
                         key={zone.zone}
                         type="button"
                         className={`dashboard-zone-tile dashboard-zone-tile--${zone.health.tone} ${isActive ? "is-active" : ""}`}
-                        style={{ flexGrow }}
+                        style={{ flexGrow, animationDelay: `${Math.min(enhancedZoneStats.indexOf(zone) * 70, 700)}ms` }}
                         onClick={() => setSelectedZone(zone.zone)}
                       >
                         <div className="dashboard-zone-tile__header">
@@ -397,7 +470,7 @@ export default function DashboardScreen() {
                         </div>
                         <div className="dashboard-zone-tile__footer">
                           <span>{t(zone.health.labelKey)}</span>
-                          <span>{formatNumber(zone.problems_count)} issues</span>
+                          <span>{formatNumber(zone.problems_count)} {t("dashboard.zoneIssueCount")}</span>
                         </div>
                       </button>
                     );

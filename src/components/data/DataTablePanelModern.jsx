@@ -22,6 +22,9 @@ export default function DataTablePanelModern({
   onDelete,
   onEdit,
   renderActions,
+  selectedRowIds = [],
+  onToggleRow = null,
+  onToggleAllRows = null,
   onAdd,
   addLabel = "",
   pageSize = 25,
@@ -34,6 +37,7 @@ export default function DataTablePanelModern({
   const [searchValue, setSearchValue] = useState("");
   const [internalPage, setInternalPage] = useState(1);
   const showActions = Boolean(onDelete || onEdit || renderActions);
+  const selectable = typeof onToggleRow === "function";
   const isServerPagination = typeof onPageChange === "function" && typeof page === "number";
 
   useEffect(() => {
@@ -53,6 +57,13 @@ export default function DataTablePanelModern({
     const from = (currentPage - 1) * pageSize;
     return data.slice(from, from + pageSize);
   }, [currentPage, data, isServerPagination, pageSize]);
+
+  const pageRowIds = pagedData.map((row) => row.id).filter(Boolean);
+  const selectedSet = new Set(selectedRowIds);
+  const allSelectedOnPage =
+    selectable &&
+    pageRowIds.length > 0 &&
+    pageRowIds.every((id) => selectedSet.has(id));
 
   function goToPage(nextPage) {
     const maxPage = totalPages || nextPage;
@@ -170,6 +181,16 @@ export default function DataTablePanelModern({
         <table className="app-table">
           <thead>
             <tr>
+              {selectable ? (
+                <th style={{ width: 44 }}>
+                  <input
+                    type="checkbox"
+                    checked={allSelectedOnPage}
+                    onChange={(event) => onToggleAllRows && onToggleAllRows(pageRowIds, event.target.checked)}
+                    aria-label={t("common.selectAll")}
+                  />
+                </th>
+              ) : null}
               {columns.map((column) => (
                 <th
                   key={column.key}
@@ -185,6 +206,16 @@ export default function DataTablePanelModern({
           <tbody>
             {pagedData.map((row, index) => (
               <tr key={row.id || index}>
+                {selectable ? (
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selectedSet.has(row.id)}
+                      onChange={(event) => onToggleRow(row, event.target.checked)}
+                      aria-label={t("common.select")}
+                    />
+                  </td>
+                ) : null}
                 {columns.map((column) => (
                   <td key={column.key}>
                     {column.key === "price" && onEdit ? (
@@ -203,12 +234,14 @@ export default function DataTablePanelModern({
                 ))}
                 {showActions ? (
                   <td>
-                    {renderActions ? renderActions(row) : null}
-                    {onDelete ? (
-                      <button className="app-button app-button--secondary" onClick={() => onDelete(row)}>
-                        {t("common.delete")}
-                      </button>
-                    ) : null}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {renderActions ? renderActions(row) : null}
+                      {onDelete ? (
+                        <button className="app-button app-button--secondary" onClick={() => onDelete(row)}>
+                          {t("common.delete")}
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 ) : null}
               </tr>
@@ -216,7 +249,7 @@ export default function DataTablePanelModern({
 
             {pagedData.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + (showActions ? 1 : 0)} className="app-empty-state">
+                <td colSpan={columns.length + (showActions ? 1 : 0) + (selectable ? 1 : 0)} className="app-empty-state">
                   {t("common.noData")}
                 </td>
               </tr>

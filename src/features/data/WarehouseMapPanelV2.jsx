@@ -11,7 +11,10 @@ import {
   fetchLocationsPage,
   replaceLocations,
   resetWarehouseMap,
+  updateAllWarehouseLocationStatuses,
   updateWarehouseLocationStatus,
+  updateWarehouseLocationStatuses,
+  updateWarehouseLocationStatusesByZone,
 } from "../../core/api/dataSectionApi";
 import { buildLocationsImportPreview } from "../../core/upload/dataImports";
 import { useAuth } from "../../core/auth/AppAuth";
@@ -28,6 +31,9 @@ const COPY = {
     promptZone: "Strefa",
     title: "Mapa magazynu",
     resetAction: "Resetuj mape magazynu",
+    resetSelectedAction: "Resetuj zaznaczone",
+    resetZoneAction: "Resetuj status strefy",
+    resetWarehouseStatusAction: "Resetuj status magazynu",
     addLabel: "Dodaj lokalizacje",
     searchPlaceholder: "Szukaj po kodzie lokalizacji...",
     previewTitle: "Podglad importu mapy magazynu",
@@ -38,9 +44,23 @@ const COPY = {
     resetTitle: "Resetuj mape magazynu",
     resetMessage: "Czy na pewno chcesz zresetowac cala mape magazynu? Wszystkie lokalizacje zostana usuniete i konieczne bedzie ponowne wgranie mapy od zera.",
     resetConfirm: "Tak, resetuj mape",
+    resetSelectedTitle: "Resetuj status zaznaczonych lokalizacji",
+    resetSelectedMessage: "Czy na pewno chcesz ustawic status {{count}} zaznaczonych lokalizacji na pending?",
+    resetSelectedConfirm: "Tak, resetuj zaznaczone",
+    resetZoneTitle: "Resetuj status strefy",
+    resetZoneMessage: "Czy na pewno chcesz ustawic status wszystkich lokalizacji w strefie {{zone}} na pending?",
+    resetZoneConfirm: "Tak, resetuj strefe",
+    resetWarehouseStatusTitle: "Resetuj status magazynu",
+    resetWarehouseStatusMessage: "Czy na pewno chcesz ustawic status wszystkich lokalizacji w tym magazynie na pending?",
+    resetWarehouseStatusConfirm: "Tak, resetuj magazyn",
     deleteSuccess: "Usunieto lokalizacje {{code}}.",
     resetStatusAction: "Zresetuj status",
     resetStatusSuccess: "Status lokalizacji {{code}} zmieniono na pending.",
+    resetSelectedSuccess: "Status {{count}} lokalizacji zmieniono na pending.",
+    resetZoneSuccess: "Status strefy {{zone}} zmieniono na pending.",
+    resetWarehouseStatusSuccess: "Status wszystkich lokalizacji magazynu zmieniono na pending.",
+    selectZoneFirst: "Najpierw wybierz strefe, aby zresetowac jej status.",
+    selectRowsFirst: "Najpierw zaznacz lokalizacje do akcji masowej.",
     resetSuccess: "Mapa magazynu zostala zresetowana. Aby pracowac dalej, wgraj nowy plik mapy.",
     actionError: "Nie udalo sie wykonac operacji na mapie magazynu",
     close: "Zamknij",
@@ -49,6 +69,9 @@ const COPY = {
     resetLoading: "Resetuje cala mape magazynu i czyszcze lokalizacje...",
     deleteLoading: "Usuwam wskazana lokalizacje z mapy magazynu...",
     statusResetLoading: "Przywracam status lokalizacji do pending...",
+    statusResetSelectedLoading: "Przywracam status zaznaczonych lokalizacji do pending...",
+    statusResetZoneLoading: "Przywracam status calej strefy do pending...",
+    statusResetWarehouseLoading: "Przywracam status calego magazynu do pending...",
     importLoading: "Analizuje plik mapy magazynu i przygotowuje podglad importu...",
     processingMessage: "Resetuje mape i importuje nowy zestaw lokalizacji...",
     columns: { code: "Lokalizacja", zone: "Strefa", status: "Status" },
@@ -61,6 +84,9 @@ const COPY = {
     promptZone: "Zone",
     title: "Warehouse map",
     resetAction: "Reset warehouse map",
+    resetSelectedAction: "Reset selected",
+    resetZoneAction: "Reset zone status",
+    resetWarehouseStatusAction: "Reset warehouse status",
     addLabel: "Add location",
     searchPlaceholder: "Search by location code...",
     previewTitle: "Warehouse map import preview",
@@ -71,9 +97,23 @@ const COPY = {
     resetTitle: "Reset warehouse map",
     resetMessage: "Are you sure you want to reset the entire warehouse map? All locations will be removed and the map will need to be uploaded again from scratch.",
     resetConfirm: "Yes, reset map",
+    resetSelectedTitle: "Reset selected location statuses",
+    resetSelectedMessage: "Are you sure you want to change {{count}} selected locations back to pending?",
+    resetSelectedConfirm: "Yes, reset selected",
+    resetZoneTitle: "Reset zone status",
+    resetZoneMessage: "Are you sure you want to change all locations in zone {{zone}} back to pending?",
+    resetZoneConfirm: "Yes, reset zone",
+    resetWarehouseStatusTitle: "Reset warehouse status",
+    resetWarehouseStatusMessage: "Are you sure you want to change all locations in this warehouse back to pending?",
+    resetWarehouseStatusConfirm: "Yes, reset warehouse",
     deleteSuccess: "Deleted location {{code}}.",
     resetStatusAction: "Reset status",
     resetStatusSuccess: "Location {{code}} status has been changed to pending.",
+    resetSelectedSuccess: "{{count}} locations have been changed back to pending.",
+    resetZoneSuccess: "Zone {{zone}} has been changed back to pending.",
+    resetWarehouseStatusSuccess: "All warehouse location statuses have been changed back to pending.",
+    selectZoneFirst: "Select a zone first to reset the zone status.",
+    selectRowsFirst: "Select locations first to run a bulk action.",
     resetSuccess: "The warehouse map has been reset. Upload a new map file to continue working.",
     actionError: "Could not complete the warehouse map action",
     close: "Close",
@@ -82,6 +122,9 @@ const COPY = {
     resetLoading: "Resetting the full warehouse map and clearing locations...",
     deleteLoading: "Deleting the selected location from the warehouse map...",
     statusResetLoading: "Resetting the location status back to pending...",
+    statusResetSelectedLoading: "Resetting selected locations back to pending...",
+    statusResetZoneLoading: "Resetting the whole zone back to pending...",
+    statusResetWarehouseLoading: "Resetting the whole warehouse back to pending...",
     importLoading: "Analyzing the warehouse map file and preparing the import preview...",
     processingMessage: "Resetting the map and importing the new location set...",
     columns: { code: "Location", zone: "Zone", status: "Status" },
@@ -94,6 +137,9 @@ const COPY = {
     promptZone: "Zone",
     title: "Lagerkarte",
     resetAction: "Lagerkarte zurucksetzen",
+    resetSelectedAction: "Auswahl zurucksetzen",
+    resetZoneAction: "Zonenstatus zurucksetzen",
+    resetWarehouseStatusAction: "Lagerstatus zurucksetzen",
     addLabel: "Lokation hinzufugen",
     searchPlaceholder: "Nach Lokationscode suchen...",
     previewTitle: "Importvorschau Lagerkarte",
@@ -104,9 +150,23 @@ const COPY = {
     resetTitle: "Lagerkarte zurucksetzen",
     resetMessage: "Mochtest du die komplette Lagerkarte wirklich zurucksetzen? Alle Lokationen werden entfernt und die Karte muss anschliessend neu hochgeladen werden.",
     resetConfirm: "Ja, Karte zurucksetzen",
+    resetSelectedTitle: "Status der ausgewahlten Lokationen zurucksetzen",
+    resetSelectedMessage: "Mochtest du den Status von {{count}} ausgewahlten Lokationen wirklich auf pending setzen?",
+    resetSelectedConfirm: "Ja, Auswahl zurucksetzen",
+    resetZoneTitle: "Zonenstatus zurucksetzen",
+    resetZoneMessage: "Mochtest du den Status aller Lokationen in Zone {{zone}} wirklich auf pending setzen?",
+    resetZoneConfirm: "Ja, Zone zurucksetzen",
+    resetWarehouseStatusTitle: "Lagerstatus zurucksetzen",
+    resetWarehouseStatusMessage: "Mochtest du den Status aller Lokationen in diesem Lager wirklich auf pending setzen?",
+    resetWarehouseStatusConfirm: "Ja, Lager zurucksetzen",
     deleteSuccess: "Lokation {{code}} wurde geloscht.",
     resetStatusAction: "Status zurucksetzen",
     resetStatusSuccess: "Der Status der Lokation {{code}} wurde auf pending gesetzt.",
+    resetSelectedSuccess: "Der Status von {{count}} Lokationen wurde auf pending gesetzt.",
+    resetZoneSuccess: "Der Status der Zone {{zone}} wurde auf pending gesetzt.",
+    resetWarehouseStatusSuccess: "Der Status aller Lokationen im Lager wurde auf pending gesetzt.",
+    selectZoneFirst: "Wahle zuerst eine Zone aus, um den Zonenstatus zuruckzusetzen.",
+    selectRowsFirst: "Wahle zuerst Lokationen fur die Sammelaktion aus.",
     resetSuccess: "Die Lagerkarte wurde zuruckgesetzt. Lade eine neue Kartendatei hoch, um weiterzuarbeiten.",
     actionError: "Die Aktion fur die Lagerkarte konnte nicht ausgefuhrt werden",
     close: "Schliessen",
@@ -115,6 +175,9 @@ const COPY = {
     resetLoading: "Die gesamte Lagerkarte wird zuruckgesetzt und Lokationen werden entfernt...",
     deleteLoading: "Die ausgewahlte Lokation wird aus der Lagerkarte entfernt...",
     statusResetLoading: "Der Status der Lokation wird auf pending zuruckgesetzt...",
+    statusResetSelectedLoading: "Der Status der ausgewahlten Lokationen wird auf pending zuruckgesetzt...",
+    statusResetZoneLoading: "Der Status der gesamten Zone wird auf pending zuruckgesetzt...",
+    statusResetWarehouseLoading: "Der Status des gesamten Lagers wird auf pending zuruckgesetzt...",
     importLoading: "Datei der Lagerkarte wird analysiert und Importvorschau wird vorbereitet...",
     processingMessage: "Karte wird zuruckgesetzt und neuer Lokationssatz wird importiert...",
     columns: { code: "Lokation", zone: "Zone", status: "Status" },
@@ -140,6 +203,7 @@ export default function WarehouseMapPanel() {
   const [processing, setProcessing] = useState(false);
   const [importPreparing, setImportPreparing] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [selectedRowIds, setSelectedRowIds] = useState([]);
   const limit = 50;
 
   async function loadRows() {
@@ -154,6 +218,9 @@ export default function WarehouseMapPanel() {
       });
       setRows(response.data);
       setHasNextPage(Boolean(response.hasMore));
+      setSelectedRowIds((current) =>
+        current.filter((id) => (response.data || []).some((row) => row.id === id))
+      );
       setError("");
     } catch (err) {
       setError(err.message || copy.loadError);
@@ -282,6 +349,43 @@ export default function WarehouseMapPanel() {
     });
   };
 
+  const openResetSelectedConfirm = () => {
+    if (!selectedRowIds.length) {
+      alert(copy.selectRowsFirst);
+      return;
+    }
+
+    setConfirmModal({
+      mode: "reset-selected",
+      title: copy.resetSelectedTitle,
+      message: copy.resetSelectedMessage.replace("{{count}}", String(selectedRowIds.length)),
+      confirmLabel: copy.resetSelectedConfirm,
+    });
+  };
+
+  const openResetZoneStatusConfirm = () => {
+    if (zoneFilter === "all") {
+      alert(copy.selectZoneFirst);
+      return;
+    }
+
+    setConfirmModal({
+      mode: "reset-zone-status",
+      title: copy.resetZoneTitle,
+      message: copy.resetZoneMessage.replace("{{zone}}", zoneFilter),
+      confirmLabel: copy.resetZoneConfirm,
+    });
+  };
+
+  const openResetWarehouseStatusConfirm = () => {
+    setConfirmModal({
+      mode: "reset-warehouse-status",
+      title: copy.resetWarehouseStatusTitle,
+      message: copy.resetWarehouseStatusMessage,
+      confirmLabel: copy.resetWarehouseStatusConfirm,
+    });
+  };
+
   const closeConfirm = () => {
     if (!processing) {
       setConfirmModal(null);
@@ -297,6 +401,7 @@ export default function WarehouseMapPanel() {
       if (confirmModal.mode === "delete" && confirmModal.row?.id) {
         await deleteWarehouseLocation(confirmModal.row.id);
         alert(copy.deleteSuccess.replace("{{code}}", confirmModal.row.code));
+        setSelectedRowIds((current) => current.filter((id) => id !== confirmModal.row.id));
         await refreshZones();
         if (page === 1) {
           await loadRows();
@@ -308,8 +413,30 @@ export default function WarehouseMapPanel() {
         setPage(1);
         setSearch("");
         setZoneFilter("all");
+        setSelectedRowIds([]);
         await refreshZones();
         alert(copy.resetSuccess);
+      }
+
+      if (confirmModal.mode === "reset-selected") {
+        await updateWarehouseLocationStatuses(selectedRowIds, "pending");
+        alert(copy.resetSelectedSuccess.replace("{{count}}", String(selectedRowIds.length)));
+        setSelectedRowIds([]);
+        await loadRows();
+      }
+
+      if (confirmModal.mode === "reset-zone-status") {
+        await updateWarehouseLocationStatusesByZone(zoneFilter, "pending");
+        alert(copy.resetZoneSuccess.replace("{{zone}}", zoneFilter));
+        setSelectedRowIds([]);
+        await loadRows();
+      }
+
+      if (confirmModal.mode === "reset-warehouse-status") {
+        await updateAllWarehouseLocationStatuses("pending");
+        alert(copy.resetWarehouseStatusSuccess);
+        setSelectedRowIds([]);
+        await loadRows();
       }
 
       setConfirmModal(null);
@@ -353,16 +480,42 @@ export default function WarehouseMapPanel() {
           })
         }
         extraActions={
-          <Button variant="secondary" onClick={openResetConfirm}>
-            {copy.resetAction}
-          </Button>
-        }
-        renderActions={(row) => (
           <>
-            <Button variant="secondary" onClick={() => handleResetStatus(row)}>
-              {copy.resetStatusAction}
+            <Button variant="secondary" onClick={openResetSelectedConfirm}>
+              {copy.resetSelectedAction}
+            </Button>
+            <Button variant="secondary" onClick={openResetZoneStatusConfirm}>
+              {copy.resetZoneAction}
+            </Button>
+            <Button variant="secondary" onClick={openResetWarehouseStatusConfirm}>
+              {copy.resetWarehouseStatusAction}
+            </Button>
+            <Button variant="secondary" onClick={openResetConfirm}>
+              {copy.resetAction}
             </Button>
           </>
+        }
+        selectedRowIds={selectedRowIds}
+        onToggleRow={(row, checked) => {
+          setSelectedRowIds((current) =>
+            checked ? [...new Set([...current, row.id])] : current.filter((id) => id !== row.id)
+          );
+        }}
+        onToggleAllRows={(rowIds, checked) => {
+          setSelectedRowIds((current) => {
+            const currentSet = new Set(current);
+            if (checked) {
+              rowIds.forEach((id) => currentSet.add(id));
+            } else {
+              rowIds.forEach((id) => currentSet.delete(id));
+            }
+            return Array.from(currentSet);
+          });
+        }}
+        renderActions={(row) => (
+          <Button variant="secondary" onClick={() => handleResetStatus(row)}>
+            {copy.resetStatusAction}
+          </Button>
         )}
         onDelete={openDeleteConfirm}
         onAdd={handleAdd}
@@ -423,7 +576,17 @@ export default function WarehouseMapPanel() {
             </div>
             <LoadingOverlay
               open={processing}
-              message={confirmModal.mode === "reset" ? copy.resetLoading : copy.deleteLoading}
+              message={
+                confirmModal.mode === "reset"
+                  ? copy.resetLoading
+                  : confirmModal.mode === "reset-selected"
+                    ? copy.statusResetSelectedLoading
+                    : confirmModal.mode === "reset-zone-status"
+                      ? copy.statusResetZoneLoading
+                      : confirmModal.mode === "reset-warehouse-status"
+                        ? copy.statusResetWarehouseLoading
+                        : copy.deleteLoading
+              }
             />
           </div>
         </div>

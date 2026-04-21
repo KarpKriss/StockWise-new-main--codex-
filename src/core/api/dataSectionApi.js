@@ -244,6 +244,48 @@ export async function updateWarehouseLocationStatus(id, status, siteId = readAct
   }
 }
 
+export async function updateWarehouseLocationStatuses(ids, status, siteId = readActiveSiteId()) {
+  const safeIds = Array.isArray(ids) ? ids.filter(Boolean) : [];
+  if (!safeIds.length) return;
+
+  const { error } = await applySiteFilter(
+    supabase.from("locations").update({ status }).in("id", safeIds),
+    siteId
+  );
+
+  if (error) {
+    console.error("UPDATE LOCATION STATUSES ERROR:", error);
+    throw new Error(error.message || "Blad masowej zmiany statusu lokalizacji");
+  }
+}
+
+export async function updateWarehouseLocationStatusesByZone(zone, status, siteId = readActiveSiteId()) {
+  const normalizedZone = String(zone || "").trim();
+  if (!normalizedZone) return;
+
+  const { error } = await applySiteFilter(
+    supabase.from("locations").update({ status }).eq("zone", normalizedZone),
+    siteId
+  );
+
+  if (error) {
+    console.error("UPDATE LOCATION STATUSES BY ZONE ERROR:", error);
+    throw new Error(error.message || "Blad zmiany statusow strefy");
+  }
+}
+
+export async function updateAllWarehouseLocationStatuses(status, siteId = readActiveSiteId()) {
+  const { error } = await applySiteFilter(
+    supabase.from("locations").update({ status }),
+    siteId
+  ).not("id", "is", null);
+
+  if (error) {
+    console.error("UPDATE ALL LOCATION STATUSES ERROR:", error);
+    throw new Error(error.message || "Blad zmiany statusow magazynu");
+  }
+}
+
 export async function resetWarehouseMap(siteId = readActiveSiteId()) {
   const { error } = await applySiteFilter(
     supabase.from("locations").delete(),

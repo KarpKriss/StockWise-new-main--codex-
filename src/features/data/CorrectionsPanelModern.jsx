@@ -226,7 +226,6 @@ export default function CorrectionsPanelModern() {
 
   return (
     <PageShell
-      title="Historia korekt"
       title={copy.title}
       subtitle={copy.subtitle}
       icon={<FileWarning size={26} />}

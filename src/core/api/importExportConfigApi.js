@@ -33,6 +33,9 @@ function mapSampleRow(entityKey, row) {
       return {
         code: row.code || "",
         zone: row.zone || "",
+        aisle: row.aisle || "",
+        level: row.level || "",
+        location_type: row.location_type || "",
         status: row.status || "",
       };
     case "corrections":
@@ -198,7 +201,11 @@ export async function fetchImportExportPreviewSample(entityKey, mapping) {
     if (result.error) throw new Error(result.error.message || "Nie udalo sie pobrac probki cen");
     row = mapSampleRow(entityKey, result.data);
   } else if (entityKey === "locations") {
-    const result = await supabase.from("locations").select("code, zone, status").limit(1).maybeSingle();
+    const result = await supabase
+      .from("locations")
+      .select("code, zone, aisle, level, location_type, status")
+      .limit(1)
+      .maybeSingle();
     if (result.error) throw new Error(result.error.message || "Nie udalo sie pobrac probki mapy magazynu");
     row = mapSampleRow(entityKey, result.data);
   } else if (entityKey === "corrections") {

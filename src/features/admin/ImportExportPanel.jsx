@@ -247,9 +247,9 @@ export default function ImportExportPanel() {
       de: { title: "Preise", description: "Zuordnung von Preisen fuer Finanzberichte." },
     },
     locations: {
-      pl: { title: "Mapa magazynu", description: "Mapowanie kodow lokalizacji, stref i statusow operacyjnych." },
-      en: { title: "Warehouse map", description: "Map location codes, zones, and operational statuses." },
-      de: { title: "Lagerplan", description: "Lagerplatzcodes, Zonen und operative Status zuordnen." },
+      pl: { title: "Mapa magazynu", description: "Mapowanie kodow lokalizacji, stref, alei, poziomow, typow lokalizacji i statusow operacyjnych." },
+      en: { title: "Warehouse map", description: "Map location codes, zones, aisles, levels, location types, and operational statuses." },
+      de: { title: "Lagerplan", description: "Lagerplatzcodes, Zonen, Gange, Ebenen, Lokationstypen und operative Status zuordnen." },
     },
     corrections: {
       pl: { title: "Historia", description: "Mapowanie naglowkow eksportu dla historii korekt i problemow." },
@@ -276,6 +276,9 @@ export default function ImportExportPanel() {
     locations: {
       code: { en: "Location code", de: "Lagerplatzcode" },
       zone: { en: "Zone", de: "Zone" },
+      aisle: { en: "Aisle", de: "Gang" },
+      level: { en: "Level", de: "Ebene" },
+      location_type: { en: "Location type", de: "Lokationstyp" },
       status: { en: "Status", de: "Status" },
     },
     corrections: {

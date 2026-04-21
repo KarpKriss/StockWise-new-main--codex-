@@ -7,6 +7,29 @@ function normalizeHeaderKey(value) {
     .replace(/\uFEFF/g, "");
 }
 
+function mergeExportColumns(defaultColumns = [], storedColumns = []) {
+  const bySource = new Map();
+
+  (storedColumns || []).forEach((column) => {
+    if (!column?.source) return;
+    bySource.set(column.source, column);
+  });
+
+  const merged = defaultColumns.map((defaultColumn) => {
+    const stored = bySource.get(defaultColumn.source);
+    return stored ? { ...defaultColumn, ...stored } : defaultColumn;
+  });
+
+  (storedColumns || []).forEach((column) => {
+    if (!column?.source) return;
+    if (!defaultColumns.some((defaultColumn) => defaultColumn.source === column.source)) {
+      merged.push(column);
+    }
+  });
+
+  return merged;
+}
+
 export function mergeImportExportMapping(storedMapping) {
   const defaults = getDefaultImportExportMapping();
   const next = {
@@ -34,10 +57,10 @@ export function mergeImportExportMapping(storedMapping) {
       export: {
         ...defaultEntity.export,
         ...(storedEntity.export || {}),
-        columns:
-          storedEntity.export?.columns?.length > 0
-            ? storedEntity.export.columns
-            : defaultEntity.export.columns,
+        columns: mergeExportColumns(
+          defaultEntity.export.columns,
+          storedEntity.export?.columns || []
+        ),
       },
     };
   });
@@ -91,4 +114,3 @@ export function getMappedExportColumns(entityKey, mapping) {
     ? columns
     : entity.exportFields.map((field) => ({ key: field.key, label: field.label }));
 }
-

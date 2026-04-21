@@ -97,14 +97,31 @@ export async function fetchEmptyLocationsForZone({ zone, siteId } = {}) {
   const allLocations = [];
   let offset = 0;
 
-  const { data: stockRows, error: stockError } = await applySiteFilter(
-    supabase.from("stock").select("location_id"),
-    safeSiteId
-  );
+  const stockRows = [];
+  let stockOffset = 0;
 
-  if (stockError) {
-    console.error("FETCH STOCK FOR EMPTY LOCATIONS ERROR:", stockError);
-    throw new Error(stockError.message || "Blad pobierania stocku");
+  while (true) {
+    const { data, error: stockError } = await applySiteFilter(
+      supabase.from("stock").select("location_id"),
+      safeSiteId
+    ).range(stockOffset, stockOffset + pageSize - 1);
+
+    if (stockError) {
+      console.error("FETCH STOCK FOR EMPTY LOCATIONS ERROR:", stockError);
+      throw new Error(stockError.message || "Blad pobierania stocku");
+    }
+
+    if (!data?.length) {
+      break;
+    }
+
+    stockRows.push(...data);
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    stockOffset += pageSize;
   }
 
   while (true) {

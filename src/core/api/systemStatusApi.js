@@ -76,6 +76,15 @@ async function fetchLocationMap(locationIds = [], siteId = readActiveSiteId()) {
   return new Map((data || []).map((row) => [row.id, row]));
 }
 
+async function fetchAllIssueRows() {
+  return fetchAllRows(() =>
+    supabase
+      .from("empty_location_issues")
+      .select("id, location_id, status, issue_type, note, operator_email, created_at, source_process")
+      .order("created_at", { ascending: false })
+  );
+}
+
 function buildSiteScopedAlerts(summary = {}) {
   const alerts = [];
 
@@ -214,22 +223,23 @@ async function fetchSiteScopedSystemStatus(activeSiteId) {
     return minutesSinceSignal !== null && minutesSinceSignal >= STALE_SESSION_MINUTES;
   });
 
+  let issueRows = [];
+
+  try {
+    issueRows = await fetchAllIssueRows();
+  } catch (error) {
+    console.error("SYSTEM STATUS SITE ISSUES ERROR:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Nie udalo sie pobrac problemow magazynu"
+    );
+  }
+
   const locationMap = await fetchLocationMap(
-    [...new Set(((await supabase.from("empty_location_issues").select("location_id").order("created_at", { ascending: false })).data || []).map((row) => row.location_id).filter(Boolean))],
+    [...new Set(issueRows.map((row) => row.location_id).filter(Boolean))],
     activeSiteId
   );
 
-  const issueResult = await supabase
-    .from("empty_location_issues")
-    .select("id, location_id, status")
-    .order("created_at", { ascending: false });
-
-  if (issueResult.error) {
-    console.error("SYSTEM STATUS SITE ISSUES ERROR:", issueResult.error);
-    throw new Error(issueResult.error.message || "Nie udalo sie pobrac problemow magazynu");
-  }
-
-  const unresolvedIssues = (issueResult.data || []).filter(
+  const unresolvedIssues = issueRows.filter(
     (row) =>
       locationMap.has(row.location_id) &&
       !["resolved", "closed"].includes(String(row.status || "").toLowerCase())
@@ -556,14 +566,15 @@ export async function fetchSystemStatusDetails(metricKey, siteId = readActiveSit
   }
 
   if (metricKey === "open_problems") {
-    const { data, error } = await supabase
-      .from("empty_location_issues")
-      .select("id, location_id, issue_type, note, status, operator_email, created_at, source_process")
-      .order("created_at", { ascending: false });
+    let data = [];
 
-    if (error) {
+    try {
+      data = await fetchAllIssueRows();
+    } catch (error) {
       console.error("SYSTEM STATUS PROBLEMS DETAIL ERROR:", error);
-      throw new Error(error.message || "Nie udalo sie pobrac szczegolow problemow");
+      throw new Error(
+        error instanceof Error ? error.message : "Nie udalo sie pobrac szczegolow problemow"
+      );
     }
 
     const locationMap = await fetchLocationMap((data || []).map((row) => row.location_id), activeSiteId);

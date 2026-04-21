@@ -14,6 +14,30 @@ function normalizeSort(sortKey, fallback = "sku") {
   return sortKey || fallback;
 }
 
+async function fetchAllSiteRows(buildQuery, { pageSize = 1000 } = {}) {
+  const rows = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    const batch = data || [];
+    rows.push(...batch);
+
+    if (batch.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return rows;
+}
+
 export async function fetchStockRows({ search = "", sortKey = "location", siteId = readActiveSiteId() } = {}) {
   const [{ data: stock, error }, { data: locations, error: locationsError }, catalog] =
     await Promise.all([
@@ -171,12 +195,13 @@ export async function fetchLocationsPage({
 }
 
 export async function fetchLocationZones(siteId = readActiveSiteId()) {
-  const { data, error } = await applySiteFilter(
-    supabase.from("locations").select("zone"),
-    siteId
-  );
+  let data;
 
-  if (error) {
+  try {
+    data = await fetchAllSiteRows(() =>
+      applySiteFilter(supabase.from("locations").select("zone"), siteId)
+    );
+  } catch (error) {
     console.error("FETCH LOCATION ZONES ERROR:", error);
     throw new Error("Blad pobierania stref magazynu");
   }

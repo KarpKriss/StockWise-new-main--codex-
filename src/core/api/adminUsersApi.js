@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { applySiteFilter, readActiveSiteId } from "../auth/siteScope";
 
 function normalizeAdminUser(entry = {}) {
   return {
@@ -139,16 +140,22 @@ async function invokeAdminRpc(functionName, payload = {}) {
 
 async function fetchAdminUsersListFallback() {
   const [profilesResult, sessionsResult] = await Promise.all([
-    supabase
+    applySiteFilter(
+      supabase
       .from("profiles")
       .select(
-        "id, user_id, email, name, role, status, created_at, updated_at, login_attempts, failed_attempts, lock_until, operator_number"
+        "id, user_id, email, name, role, status, site_id, created_at, updated_at, login_attempts, failed_attempts, lock_until, operator_number"
       )
       .order("created_at", { ascending: false }),
-    supabase
+      readActiveSiteId()
+    ),
+    applySiteFilter(
+      supabase
       .from("sessions")
-      .select("id, user_id, operator, status, started_at, ended_at, last_activity, created_at")
+      .select("id, user_id, operator, status, started_at, ended_at, last_activity, created_at, site_id")
       .order("started_at", { ascending: false }),
+      readActiveSiteId()
+    ),
   ]);
 
   if (profilesResult.error) {
@@ -179,6 +186,7 @@ async function fetchAdminUsersListFallback() {
       operatorNumber: profile.operator_number || "",
       role: String(profile.role || "user").toLowerCase(),
       status: String(profile.status || "inactive").toLowerCase(),
+      site_id: profile.site_id || latestSession?.site_id || null,
       created_at: profile.created_at || null,
       updated_at: profile.updated_at || null,
       lock_until: profile.lock_until,
@@ -195,6 +203,26 @@ async function fetchAdminUsersListFallback() {
   });
 }
 
+async function fetchScopedUserIds(siteId = readActiveSiteId()) {
+  const normalizedSiteId = siteId || readActiveSiteId();
+  if (!normalizedSiteId) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("user_site_access")
+    .select("user_id")
+    .eq("site_id", normalizedSiteId)
+    .eq("status", "active");
+
+  if (error) {
+    console.error("FETCH ADMIN USER SITE ACCESS ERROR:", error);
+    throw new Error(error.message || "Nie udalo sie pobrac przypisan uzytkownikow do magazynu");
+  }
+
+  return new Set((data || []).map((row) => row.user_id).filter(Boolean));
+}
+
 function requireEdgeFunctionFeature(message) {
   throw new Error(
     `${message} Backend admin-users nie odpowiada. Wdroz edge function, aby uzyc tej akcji.`
@@ -203,6 +231,7 @@ function requireEdgeFunctionFeature(message) {
 
 export async function fetchAdminUsersList() {
   let baseUsers = [];
+  const scopedUserIds = await fetchScopedUserIds();
 
   try {
     const data = await invokeAdminRpc("get_admin_users_overview");
@@ -213,10 +242,15 @@ export async function fetchAdminUsersList() {
     baseUsers = await fetchAdminUsersListFallback();
   }
 
+  if (scopedUserIds instanceof Set) {
+    baseUsers = baseUsers.filter((entry) => scopedUserIds.has(entry.user_id));
+  }
+
   try {
     const edgeUsers = await fetchAdminUsersListFromEdge();
     const edgeByUserId = new Map(
       edgeUsers
+        .filter((entry) => !(scopedUserIds instanceof Set) || scopedUserIds.has(entry.user_id))
         .filter((entry) => entry.user_id)
         .map((entry) => [entry.user_id, entry]),
     );

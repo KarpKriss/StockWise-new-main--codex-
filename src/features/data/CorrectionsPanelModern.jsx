@@ -66,6 +66,7 @@ export default function CorrectionsPanelModern() {
       tableDate: "Data",
       tableWho: "Kto zmienil",
       tableEntryId: "Entry ID",
+      entryId: "Entry ID",
       tableReason: "Powod",
       tableComment: "Komentarz",
       tableDetails: "Szczegoly",
@@ -101,6 +102,7 @@ export default function CorrectionsPanelModern() {
       tableDate: "Date",
       tableWho: "Changed by",
       tableEntryId: "Entry ID",
+      entryId: "Entry ID",
       tableReason: "Reason",
       tableComment: "Comment",
       tableDetails: "Details",
@@ -136,6 +138,7 @@ export default function CorrectionsPanelModern() {
       tableDate: "Datum",
       tableWho: "Geaendert von",
       tableEntryId: "Entry-ID",
+      entryId: "Entry-ID",
       tableReason: "Grund",
       tableComment: "Kommentar",
       tableDetails: "Details",
@@ -367,7 +370,7 @@ export default function CorrectionsPanelModern() {
                 <div className="process-meta-item__value">{selectedRow.comment || "-"}</div>
               </div>
               <div className="process-meta-item">
-                <div className="process-meta-item__label">Entry ID</div>
+                <div className="process-meta-item__label">{copy.entryId}</div>
                 <div className="process-meta-item__value">{selectedRow.entry_id || "-"}</div>
               </div>
             </div>

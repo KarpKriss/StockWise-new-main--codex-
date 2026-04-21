@@ -107,6 +107,7 @@ export default function UserPanelModern() {
       addUserDesc: "Utworz nowe konto operatora i przygotuj jego profil roboczy.",
       close: "Zamknij",
       email: "Email",
+      emailPlaceholder: "operator@firma.pl",
       initialPassword: "Haslo startowe",
       passwordPlaceholder: "Wprowadz haslo",
       alias: "Pseudonim / imie operatora",
@@ -188,6 +189,7 @@ export default function UserPanelModern() {
       addUserDesc: "Create a new operator account and prepare its work profile.",
       close: "Close",
       email: "Email",
+      emailPlaceholder: "operator@company.com",
       initialPassword: "Initial password",
       passwordPlaceholder: "Enter password",
       alias: "Alias / operator name",
@@ -269,6 +271,7 @@ export default function UserPanelModern() {
       addUserDesc: "Neues Operator-Konto anlegen und Arbeitsprofil vorbereiten.",
       close: "Schliessen",
       email: "E-Mail",
+      emailPlaceholder: "operator@unternehmen.de",
       initialPassword: "Startpasswort",
       passwordPlaceholder: "Passwort eingeben",
       alias: "Alias / Operatorname",
@@ -692,7 +695,7 @@ export default function UserPanelModern() {
                 onChange={(event) =>
                   setCreateForm((current) => ({ ...current, email: event.target.value }))
                 }
-                placeholder="operator@firma.pl"
+                placeholder={copy.emailPlaceholder}
               />
               <Input
                 label={copy.initialPassword}

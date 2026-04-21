@@ -69,6 +69,7 @@ export default function LogsPanel() {
       show: "Pokaz",
       noLogs: "Brak logow dla wybranej kategorii i filtrow.",
       selectedEvent: "Wybrane zdarzenie",
+      entryDetails: "Szczegoly wpisu",
       close: "Zamknij",
     },
     en: {
@@ -95,6 +96,7 @@ export default function LogsPanel() {
       show: "Show",
       noLogs: "No logs for the selected category and filters.",
       selectedEvent: "Selected event",
+      entryDetails: "Entry details",
       close: "Close",
     },
     de: {
@@ -121,6 +123,7 @@ export default function LogsPanel() {
       show: "Anzeigen",
       noLogs: "Keine Logs fur die gewahlte Kategorie und Filter.",
       selectedEvent: "Ausgewaehltes Ereignis",
+      entryDetails: "Eintragsdetails",
       close: "Schliessen",
     },
   }[language];
@@ -315,7 +318,7 @@ export default function LogsPanel() {
         <div className="app-card">
           <div className="system-status-section-header">
             <div>
-              <h3>Szczegoly wpisu</h3>
+              <h3>{copy.entryDetails}</h3>
               <p>{selectedLog.eventType || selectedLog.message || copy.selectedEvent}</p>
             </div>
             <button

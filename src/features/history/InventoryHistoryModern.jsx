@@ -22,22 +22,6 @@ import {
 import { exportToCSV } from "../../utils/csvExport";
 
 const PAGE_SIZE = 25;
-const REASON_OPTIONS = [
-  { value: "sku", label: "Bledny SKU" },
-  { value: "location", label: "Bledna lokalizacja" },
-  { value: "quantity", label: "Bledna ilosc" },
-  { value: "lot", label: "Bledny LOT" },
-  { value: "expiry", label: "Bledna data waznosci" },
-  { value: "type", label: "Bledny typ operacji" },
-  { value: "other", label: "Inny powod" },
-];
-
-const EDITABLE_TYPES = [
-  { value: "surplus", label: "Nadwyzka" },
-  { value: "shortage", label: "Brak" },
-  { value: "checked_empty", label: "Pusta lokalizacja" },
-  { value: "problem", label: "Problem" },
-];
 
 const INITIAL_FORM = {
   location: "",
@@ -51,26 +35,26 @@ const INITIAL_FORM = {
   comment: "",
 };
 
-function normalizeType(type) {
+function normalizeType(type, copy) {
   const normalized = String(type || "").trim().toLowerCase();
 
   if (["nadwyzka", "nadwyzka", "surplus"].includes(normalized)) {
-    return { label: "Nadwyzka", tone: "success", prefix: "+" };
+    return { label: copy.surplus, tone: "success", prefix: "+" };
   }
 
   if (["brak", "shortage"].includes(normalized)) {
-    return { label: "Brak", tone: "danger", prefix: "-" };
+    return { label: copy.shortage, tone: "danger", prefix: "-" };
   }
 
   if (normalized === "checked_empty") {
-    return { label: "Pusta lokalizacja", tone: "neutral", prefix: "" };
+    return { label: copy.emptyLocation, tone: "neutral", prefix: "" };
   }
 
   if (normalized === "problem") {
-    return { label: "Problem", tone: "warning", prefix: "" };
+    return { label: copy.problem, tone: "warning", prefix: "" };
   }
 
-  return { label: type || "Operacja", tone: "neutral", prefix: "" };
+  return { label: type || copy.operationFallback, tone: "neutral", prefix: "" };
 }
 
 function normalizeTypeValue(type) {
@@ -87,18 +71,18 @@ function normalizeTypeValue(type) {
   return normalized || "surplus";
 }
 
-function normalizeApprovalStatus(value) {
+function normalizeApprovalStatus(value, copy) {
   const normalized = String(value || "").trim().toLowerCase();
 
   if (!normalized || normalized === "pending") {
-    return { value: "pending", label: "Niezatwierdzona", tone: "warning" };
+    return { value: "pending", label: copy.approvalPending, tone: "warning" };
   }
 
   if (["approved", "confirmed", "closed"].includes(normalized)) {
-    return { value: "approved", label: "Zatwierdzona", tone: "success" };
+    return { value: "approved", label: copy.approvalApproved, tone: "success" };
   }
 
-  return { value: normalized, label: normalized, tone: "neutral" };
+  return { value: normalized, label: normalized || copy.approvalUnknown, tone: "neutral" };
 }
 
 function buildEditForm(entry) {
@@ -119,9 +103,9 @@ function formatDate(value, locale) {
   return value ? new Date(value).toLocaleString(locale) : "-";
 }
 
-function canEditEntry(entry, user) {
+function canEditEntry(entry, user, copy) {
   const role = String(user?.role || "").trim().toLowerCase();
-  const approval = normalizeApprovalStatus(entry.approval_status).value;
+  const approval = normalizeApprovalStatus(entry.approval_status, copy).value;
   const isPrivileged = ["admin", "primeuser", "superuser"].includes(role);
 
   if (isPrivileged) {
@@ -135,7 +119,7 @@ function canEditEntry(entry, user) {
   return entry.user_id === user?.id;
 }
 
-function buildExportRows(rows) {
+function buildExportRows(rows, copy) {
   return rows.map((row) => ({
     timestamp: row.timestamp || row.created_at || "",
     session_id: row.session_id || "",
@@ -147,8 +131,8 @@ function buildExportRows(rows) {
     type: row.type || "",
     quantity: row.quantity ?? "",
     operator: row.operatorName || row.operatorEmail || row.operator || row.user_id || "",
-    approval_status: normalizeApprovalStatus(row.approval_status).label,
-    correction_flag: row.correctionFlag || "NIE",
+    approval_status: normalizeApprovalStatus(row.approval_status, copy).label,
+    correction_flag: row.correctionFlag || copy.none,
   }));
 }
 
@@ -190,6 +174,7 @@ export default function InventoryHistoryModern() {
       missing: "BRAK",
       noFiltered: "Brak operacji spelniajacych filtry.",
       shown: "Pokazywane:",
+      of: "z",
       page: "Strona",
       operationDetails: "Szczegoly operacji",
       close: "Zamknij",
@@ -207,6 +192,25 @@ export default function InventoryHistoryModern() {
       correctionHint: "Powod korekty jest wymagany. Komentarz pozostaje opcjonalny, ale zapisuje sie w correction log.",
       saveChanges: "Zapisz zmiany",
       cancel: "Anuluj",
+      sku: "SKU",
+      ean: "EAN",
+      lot: "LOT",
+      sessionIdLabel: "Session ID",
+      expiryShort: "Expiry",
+      typeShort: "Typ",
+      correctionFlag: "Flaga korekty",
+      approvalPending: "Niezatwierdzona",
+      approvalApproved: "Zatwierdzona",
+      approvalUnknown: "Nieznany",
+      operationFallback: "Operacja",
+      reasonSku: "Bledny SKU",
+      reasonLocation: "Bledna lokalizacja",
+      reasonQuantity: "Bledna ilosc",
+      reasonLot: "Bledny LOT",
+      reasonExpiry: "Bledna data waznosci",
+      reasonType: "Bledny typ operacji",
+      reasonOther: "Inny powod",
+      none: "NIE",
     },
     en: {
       title: "Operation history",
@@ -242,6 +246,7 @@ export default function InventoryHistoryModern() {
       missing: "MISSING",
       noFiltered: "No operations match the current filters.",
       shown: "Showing:",
+      of: "of",
       page: "Page",
       operationDetails: "Operation details",
       close: "Close",
@@ -259,6 +264,25 @@ export default function InventoryHistoryModern() {
       correctionHint: "Correction reason is required. The comment remains optional, but it is stored in the correction log.",
       saveChanges: "Save changes",
       cancel: "Cancel",
+      sku: "SKU",
+      ean: "EAN",
+      lot: "LOT",
+      sessionIdLabel: "Session ID",
+      expiryShort: "Expiry",
+      typeShort: "Type",
+      correctionFlag: "Correction flag",
+      approvalPending: "Pending",
+      approvalApproved: "Approved",
+      approvalUnknown: "Unknown",
+      operationFallback: "Operation",
+      reasonSku: "Wrong SKU",
+      reasonLocation: "Wrong location",
+      reasonQuantity: "Wrong quantity",
+      reasonLot: "Wrong lot",
+      reasonExpiry: "Wrong expiry date",
+      reasonType: "Wrong operation type",
+      reasonOther: "Other reason",
+      none: "NO",
     },
     de: {
       title: "Vorgangshistorie",
@@ -294,6 +318,7 @@ export default function InventoryHistoryModern() {
       missing: "FEHLT",
       noFiltered: "Keine Operationen entsprechen den aktuellen Filtern.",
       shown: "Angezeigt:",
+      of: "von",
       page: "Seite",
       operationDetails: "Operationsdetails",
       close: "Schliessen",
@@ -311,8 +336,48 @@ export default function InventoryHistoryModern() {
       correctionHint: "Der Korrekturgrund ist erforderlich. Der Kommentar ist optional, wird aber im Korrekturlog gespeichert.",
       saveChanges: "Aenderungen speichern",
       cancel: "Abbrechen",
+      sku: "SKU",
+      ean: "EAN",
+      lot: "LOT",
+      sessionIdLabel: "Session-ID",
+      expiryShort: "Verfall",
+      typeShort: "Typ",
+      correctionFlag: "Korrekturflag",
+      approvalPending: "Nicht bestaetigt",
+      approvalApproved: "Bestaetigt",
+      approvalUnknown: "Unbekannt",
+      operationFallback: "Operation",
+      reasonSku: "Falsche SKU",
+      reasonLocation: "Falsche Lokation",
+      reasonQuantity: "Falsche Menge",
+      reasonLot: "Falscher LOT",
+      reasonExpiry: "Falsches Verfallsdatum",
+      reasonType: "Falscher Operationstyp",
+      reasonOther: "Anderer Grund",
+      none: "NEIN",
     },
   }[language];
+  const reasonOptions = useMemo(
+    () => [
+      { value: "sku", label: copy.reasonSku },
+      { value: "location", label: copy.reasonLocation },
+      { value: "quantity", label: copy.reasonQuantity },
+      { value: "lot", label: copy.reasonLot },
+      { value: "expiry", label: copy.reasonExpiry },
+      { value: "type", label: copy.reasonType },
+      { value: "other", label: copy.reasonOther },
+    ],
+    [copy],
+  );
+  const editableTypes = useMemo(
+    () => [
+      { value: "surplus", label: copy.surplus },
+      { value: "shortage", label: copy.shortage },
+      { value: "checked_empty", label: copy.emptyLocation },
+      { value: "problem", label: copy.problem },
+    ],
+    [copy],
+  );
   const [rows, setRows] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -413,7 +478,7 @@ export default function InventoryHistoryModern() {
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const exportRows = useMemo(() => buildExportRows(rows), [rows]);
+  const exportRows = useMemo(() => buildExportRows(rows, copy), [rows, copy]);
 
   return (
     <PageShell
@@ -428,18 +493,18 @@ export default function InventoryHistoryModern() {
             exportToCSV({
               data: exportRows,
               columns: [
-                { key: "timestamp", label: "Data" },
-                { key: "session_id", label: "Session ID" },
-                { key: "location", label: "Lokalizacja" },
-                { key: "sku", label: "SKU" },
-                { key: "ean", label: "EAN" },
-                { key: "lot", label: "LOT" },
-                { key: "expiry", label: "Expiry" },
-                { key: "type", label: "Typ" },
-                { key: "quantity", label: "Ilosc" },
-                { key: "operator", label: "Operator" },
-                { key: "approval_status", label: "Status" },
-                { key: "correction_flag", label: "Correction flag" },
+                { key: "timestamp", label: copy.date },
+                { key: "session_id", label: copy.sessionIdLabel },
+                { key: "location", label: copy.location },
+                { key: "sku", label: copy.sku },
+                { key: "ean", label: copy.ean },
+                { key: "lot", label: copy.lot },
+                { key: "expiry", label: copy.expiryShort },
+                { key: "type", label: copy.typeShort },
+                { key: "quantity", label: copy.quantity },
+                { key: "operator", label: copy.operator },
+                { key: "approval_status", label: copy.status },
+                { key: "correction_flag", label: copy.correctionFlag },
               ],
               fileName: "inventory-history.csv",
             })
@@ -457,7 +522,7 @@ export default function InventoryHistoryModern() {
             <input className="app-input" value={filters.location} onChange={(event) => setFilters((current) => ({ ...current, location: event.target.value }))} />
           </div>
           <div className="app-field">
-            <label className="app-field__label">SKU</label>
+            <label className="app-field__label">{copy.sku}</label>
             <input className="app-input" value={filters.sku} onChange={(event) => setFilters((current) => ({ ...current, sku: event.target.value }))} />
           </div>
           <div className="app-field">
@@ -478,7 +543,7 @@ export default function InventoryHistoryModern() {
             </select>
           </div>
           <div className="app-field">
-            <label className="app-field__label">Session ID</label>
+            <label className="app-field__label">{copy.sessionIdLabel}</label>
             <input className="app-input" value={filters.sessionId} onChange={(event) => setFilters((current) => ({ ...current, sessionId: event.target.value }))} />
           </div>
           <div className="app-field" style={{ gridColumn: "span 2" }}>
@@ -546,7 +611,7 @@ export default function InventoryHistoryModern() {
                 <tr>
                   <th>{copy.date}</th>
                   <th>{copy.location}</th>
-                  <th>SKU</th>
+                  <th>{copy.sku}</th>
                   <th>{copy.quantity}</th>
                   <th>{copy.operationType}</th>
                   <th>{copy.operator}</th>
@@ -556,9 +621,9 @@ export default function InventoryHistoryModern() {
               </thead>
               <tbody>
                 {rows.map((entry) => {
-                  const typeMeta = normalizeType(entry.type);
-                  const approval = normalizeApprovalStatus(entry.approval_status);
-                  const editable = canEditEntry(entry, user);
+                  const typeMeta = normalizeType(entry.type, copy);
+                  const approval = normalizeApprovalStatus(entry.approval_status, copy);
+                  const editable = canEditEntry(entry, user, copy);
 
                   return (
                     <tr key={entry.id} className={entry.wasEdited ? "history-operation-row history-operation-row--edited" : "history-operation-row"}>
@@ -609,7 +674,7 @@ export default function InventoryHistoryModern() {
           </div>
 
           <div className="data-table-pagination">
-            <div className="helper-note">{copy.shown} <strong>{rows.length}</strong> z <strong>{totalCount}</strong></div>
+            <div className="helper-note">{copy.shown} <strong>{rows.length}</strong> {copy.of} <strong>{totalCount}</strong></div>
             <div className="data-table-pagination__controls">
               <button type="button" className="app-button app-button--secondary" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>{"<"}</button>
               <div className="data-table-pagination__status">{copy.page} {page} / {totalPages}</div>
@@ -635,17 +700,17 @@ export default function InventoryHistoryModern() {
                 <table className="app-table">
                   <tbody>
                     <tr><th>{copy.location}</th><td>{selectedEntry.location || "-"}</td></tr>
-                    <tr><th>SKU</th><td>{selectedEntry.sku || "-"}</td></tr>
-                    <tr><th>EAN</th><td>{selectedEntry.ean || "-"}</td></tr>
-                    <tr><th>LOT</th><td>{selectedEntry.lot || "-"}</td></tr>
-                    <tr><th>Expiry</th><td>{selectedEntry.expiry || selectedEntry.expiry_date || "-"}</td></tr>
-                    <tr><th>{copy.operationType}</th><td>{normalizeType(selectedEntry.type).label}</td></tr>
+                    <tr><th>{copy.sku}</th><td>{selectedEntry.sku || "-"}</td></tr>
+                    <tr><th>{copy.ean}</th><td>{selectedEntry.ean || "-"}</td></tr>
+                    <tr><th>{copy.lot}</th><td>{selectedEntry.lot || "-"}</td></tr>
+                    <tr><th>{copy.expiryShort}</th><td>{selectedEntry.expiry || selectedEntry.expiry_date || "-"}</td></tr>
+                    <tr><th>{copy.operationType}</th><td>{normalizeType(selectedEntry.type, copy).label}</td></tr>
                     <tr><th>{copy.quantity}</th><td>{selectedEntry.quantity ?? 0}</td></tr>
                     <tr><th>{copy.operator}</th><td>{selectedEntry.operatorName || selectedEntry.operatorEmail || selectedEntry.operator || selectedEntry.user_id || copy.missing}</td></tr>
                     <tr><th>{copy.userId}</th><td>{selectedEntry.user_id || "-"}</td></tr>
                     <tr><th>{copy.timestamp}</th><td>{formatDate(selectedEntry.timestamp || selectedEntry.created_at, locale)}</td></tr>
                     <tr><th>{copy.sessionId}</th><td>{selectedEntry.session_id || "-"}</td></tr>
-                    <tr><th>{copy.operationStatus}</th><td>{normalizeApprovalStatus(selectedEntry.approval_status).label}</td></tr>
+                    <tr><th>{copy.operationStatus}</th><td>{normalizeApprovalStatus(selectedEntry.approval_status, copy).label}</td></tr>
                     <tr><th>{copy.corrections}</th><td>{selectedEntry.correctionCount || 0}</td></tr>
                   </tbody>
                 </table>
@@ -672,15 +737,15 @@ export default function InventoryHistoryModern() {
                 <input className="app-input" value={editForm.location} onChange={(event) => setEditForm((current) => ({ ...current, location: event.target.value }))} />
               </div>
               <div className="app-field">
-                <label className="app-field__label">SKU</label>
+                <label className="app-field__label">{copy.sku}</label>
                 <input className="app-input" value={editForm.sku} onChange={(event) => setEditForm((current) => ({ ...current, sku: event.target.value }))} />
               </div>
               <div className="app-field">
-                <label className="app-field__label">EAN</label>
+                <label className="app-field__label">{copy.ean}</label>
                 <input className="app-input" value={editForm.ean} onChange={(event) => setEditForm((current) => ({ ...current, ean: event.target.value }))} />
               </div>
               <div className="app-field">
-                <label className="app-field__label">LOT</label>
+                <label className="app-field__label">{copy.lot}</label>
                 <input className="app-input" value={editForm.lot} onChange={(event) => setEditForm((current) => ({ ...current, lot: event.target.value }))} />
               </div>
               <div className="app-field">
@@ -694,7 +759,7 @@ export default function InventoryHistoryModern() {
               <div className="app-field">
                 <label className="app-field__label">{copy.operationType}</label>
                 <select value={editForm.type} onChange={(event) => setEditForm((current) => ({ ...current, type: event.target.value }))}>
-                  {EDITABLE_TYPES.map((item) => (
+                  {editableTypes.map((item) => (
                     <option key={item.value} value={item.value}>{item.label}</option>
                   ))}
                 </select>
@@ -703,7 +768,7 @@ export default function InventoryHistoryModern() {
                 <label className="app-field__label">{copy.correctionReason}</label>
                 <select value={editForm.reasonCode} onChange={(event) => setEditForm((current) => ({ ...current, reasonCode: event.target.value }))}>
                   <option value="">{copy.selectReason}</option>
-                  {REASON_OPTIONS.map((item) => (
+                  {reasonOptions.map((item) => (
                     <option key={item.value} value={item.value}>{item.label}</option>
                   ))}
                 </select>

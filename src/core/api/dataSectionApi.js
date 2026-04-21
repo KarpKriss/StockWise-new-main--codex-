@@ -38,6 +38,28 @@ async function fetchAllSiteRows(buildQuery, { pageSize = 1000 } = {}) {
   return rows;
 }
 
+function applyLocationFilters(query, { search = "", zone = "all", locationType = "all", aisle = "all" } = {}) {
+  let nextQuery = query;
+
+  if (search.trim()) {
+    nextQuery = nextQuery.ilike("code", `%${search.trim()}%`);
+  }
+
+  if (zone !== "all") {
+    nextQuery = nextQuery.eq("zone", zone);
+  }
+
+  if (locationType !== "all") {
+    nextQuery = nextQuery.eq("location_type", locationType);
+  }
+
+  if (aisle !== "all") {
+    nextQuery = nextQuery.eq("aisle", aisle);
+  }
+
+  return nextQuery;
+}
+
 export async function fetchStockRows({ search = "", sortKey = "location", siteId = readActiveSiteId() } = {}) {
   const [{ data: stock, error }, { data: locations, error: locationsError }, catalog] =
     await Promise.all([
@@ -161,20 +183,17 @@ export async function fetchLocationsPage({
   limit = 50,
   search = "",
   zone = "all",
+  locationType = "all",
+  aisle = "all",
   sortKey = "code",
   siteId = readActiveSiteId(),
 }) {
   const from = (page - 1) * limit;
   const to = from + limit;
-  let query = applySiteFilter(supabase.from("locations").select("*"), siteId);
-
-  if (search.trim()) {
-    query = query.ilike("code", `%${search.trim()}%`);
-  }
-
-  if (zone !== "all") {
-    query = query.eq("zone", zone);
-  }
+  let query = applyLocationFilters(
+    applySiteFilter(supabase.from("locations").select("*"), siteId),
+    { search, zone, locationType, aisle }
+  );
 
   query = query.order(sortKey || "code", { ascending: true }).range(from, to);
 
@@ -194,21 +213,70 @@ export async function fetchLocationsPage({
   };
 }
 
+async function fetchLocationAttributeOptions({
+  field,
+  zone = "all",
+  locationType = "all",
+  aisle = "all",
+  siteId = readActiveSiteId(),
+}) {
+  const rows = await fetchAllSiteRows(() =>
+    applyLocationFilters(
+      applySiteFilter(supabase.from("locations").select(field), siteId),
+      { zone, locationType, aisle }
+    )
+  );
+
+  return [...new Set((rows || []).map((row) => row[field]).filter(Boolean))].sort((left, right) =>
+    String(left).localeCompare(String(right))
+  );
+}
+
 export async function fetchLocationZones(siteId = readActiveSiteId()) {
   let data;
 
   try {
-    data = await fetchAllSiteRows(() =>
-      applySiteFilter(supabase.from("locations").select("zone"), siteId)
-    );
+    data = await fetchLocationAttributeOptions({ field: "zone", siteId });
   } catch (error) {
     console.error("FETCH LOCATION ZONES ERROR:", error);
     throw new Error("Blad pobierania stref magazynu");
   }
 
-  return [...new Set((data || []).map((row) => row.zone).filter(Boolean))].sort((left, right) =>
-    String(left).localeCompare(String(right))
-  );
+  return data;
+}
+
+export async function fetchLocationTypes({
+  zone = "all",
+  siteId = readActiveSiteId(),
+} = {}) {
+  try {
+    return await fetchLocationAttributeOptions({
+      field: "location_type",
+      zone,
+      siteId,
+    });
+  } catch (error) {
+    console.error("FETCH LOCATION TYPES ERROR:", error);
+    throw new Error("Blad pobierania typow lokalizacji");
+  }
+}
+
+export async function fetchLocationAisles({
+  zone = "all",
+  locationType = "all",
+  siteId = readActiveSiteId(),
+} = {}) {
+  try {
+    return await fetchLocationAttributeOptions({
+      field: "aisle",
+      zone,
+      locationType,
+      siteId,
+    });
+  } catch (error) {
+    console.error("FETCH LOCATION AISLES ERROR:", error);
+    throw new Error("Blad pobierania alei");
+  }
 }
 
 export async function replaceLocations(rows, siteId = readActiveSiteId()) {
@@ -236,8 +304,18 @@ export async function replaceLocations(rows, siteId = readActiveSiteId()) {
   await createImportLog("locations");
 }
 
-export async function addWarehouseLocation({ code, zone, status = "active", siteId = readActiveSiteId() }) {
-  const { error } = await supabase.from("locations").insert([{ code, zone, status, site_id: siteId }]);
+export async function addWarehouseLocation({
+  code,
+  zone,
+  aisle,
+  level,
+  location_type,
+  status = "active",
+  siteId = readActiveSiteId(),
+}) {
+  const { error } = await supabase.from("locations").insert([
+    { code, zone, aisle, level, location_type, status, site_id: siteId },
+  ]);
 
   if (error) {
     console.error("ADD LOCATION ERROR:", error);

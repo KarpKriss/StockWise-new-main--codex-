@@ -15,6 +15,7 @@ export default function DataTablePanelModern({
   onLocationChange,
   locationsList = [],
   locationValue = "all",
+  additionalFilters = [],
   onSkuChange,
   skuList = [],
   skuValue = "all",
@@ -158,6 +159,23 @@ export default function DataTablePanelModern({
               ))}
             </select>
           ) : null}
+
+          {additionalFilters.map((filter) =>
+            filter?.options?.length ? (
+              <select
+                key={filter.key}
+                value={filter.value ?? "all"}
+                onChange={(event) => filter.onChange && filter.onChange(event.target.value)}
+              >
+                <option value="all">{filter.allLabel || t("common.allLocations")}</option>
+                {filter.options.map((option) => (
+                  <option key={`${filter.key}-${option}`} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            ) : null
+          )}
 
           <div className="actions-group">
             {onImport ? (

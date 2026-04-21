@@ -13,7 +13,9 @@ import { useAuth } from "../../core/auth/AppAuth";
 import { useSession } from "../../core/session/AppSession";
 import {
   confirmEmptyLocation,
+  fetchEmptyLocationAisles,
   fetchEmptyLocationsForZone,
+  fetchEmptyLocationTypes,
   fetchEmptyLocationZones,
   fetchQuickStartAnchorLocation,
   markLocationOnWork,
@@ -34,12 +36,20 @@ import QuantityStepModern from "./steps/QuantityStepModern";
 import { DEFAULT_MANUAL_PROCESS_CONFIG } from "../../core/config/manualProcessConfig";
 import { fetchManualProcessConfig } from "../../core/api/manualProcessApi";
 
-function SummaryCard({ zone, progress, location, copy }) {
+function SummaryCard({ zone, locationType, aisle, progress, location, copy }) {
   return (
     <div className="process-summary-card">
       <div className="process-summary-item">
         <div className="process-summary-item__label">{copy.zoneLabel}</div>
         <div className="process-summary-item__value">{zone || "-"}</div>
+      </div>
+      <div className="process-summary-item">
+        <div className="process-summary-item__label">{copy.locationTypeLabel}</div>
+        <div className="process-summary-item__value">{locationType || "-"}</div>
+      </div>
+      <div className="process-summary-item">
+        <div className="process-summary-item__label">{copy.aisleLabel}</div>
+        <div className="process-summary-item__value">{aisle || "-"}</div>
       </div>
       <div className="process-summary-item">
         <div className="process-summary-item__label">{copy.progressLabel}</div>
@@ -53,11 +63,15 @@ function SummaryCard({ zone, progress, location, copy }) {
   );
 }
 
+function buildScopeKey(zone, locationType, aisle) {
+  return [zone || "", locationType || "", aisle || ""].join("::");
+}
+
 function reorderLocationsFromAnchor(locations, anchorCode) {
   if (!Array.isArray(locations) || locations.length === 0) {
     return {
       locations: [],
-      directionLabel: "brak pozycji",
+      directionKey: "none",
       startedFromExactMatch: false,
     };
   }
@@ -87,7 +101,7 @@ function reorderLocationsFromAnchor(locations, anchorCode) {
   if (preferForward) {
     return {
       locations: [...locations.slice(pivotIndex), ...locations.slice(0, pivotIndex)],
-      directionLabel: "w strone konca strefy",
+      directionKey: "forward",
       startedFromExactMatch,
     };
   }
@@ -97,7 +111,7 @@ function reorderLocationsFromAnchor(locations, anchorCode) {
 
   return {
     locations: [...beforeSide, ...afterSide],
-    directionLabel: "w strone poczatku strefy",
+    directionKey: "backward",
     startedFromExactMatch,
   };
 }
@@ -109,8 +123,12 @@ export default function EmptyLocationProcessModern() {
   const { language } = useAppPreferences();
   const { session, isActive, addOperation, endSession } = useSession();
   const [zones, setZones] = useState([]);
-  const [completedZones, setCompletedZones] = useState([]);
+  const [completedScopes, setCompletedScopes] = useState([]);
   const [selectedZone, setSelectedZone] = useState("");
+  const [selectedLocationType, setSelectedLocationType] = useState("");
+  const [selectedAisle, setSelectedAisle] = useState("");
+  const [locationTypes, setLocationTypes] = useState([]);
+  const [aisles, setAisles] = useState([]);
   const [queue, setQueue] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -150,6 +168,8 @@ export default function EmptyLocationProcessModern() {
             { value: "Brak identyfikacji towaru", title: "Brak identyfikacji", description: "Nie da sie jednoznacznie rozpoznac produktu." },
           ],
           zoneLabel: "Strefa",
+          locationTypeLabel: "Typ lokalizacji",
+          aisleLabel: "Aleja",
           progressLabel: "Postep",
           currentLocationLabel: "Aktualna lokalizacja",
           loadZonesError: "Blad pobierania stref",
@@ -171,10 +191,20 @@ export default function EmptyLocationProcessModern() {
           subtitle: "Sprawdzaj lokalizacje jedna po drugiej, potwierdzaj puste miejsca i raportuj wyjatki bez opuszczania flow.",
           backLabel: "Powrot do wyboru procesu",
           quickStartActive: "Szybki start aktywny",
-          quickStartText: "Start od lokalizacji {{location}} w strefie {{zone}}. Kolejnosc zostala ustawiona {{direction}}.",
+          quickStartText:
+            "Start od lokalizacji {{location}} w strefie {{zone}}, typie {{type}} i alei {{aisle}}. Kolejnosc zostala ustawiona {{direction}}.",
+          directionForward: "w strone konca alei",
+          directionBackward: "w strone poczatku alei",
+          directionNone: "bez aktywnych pozycji",
           loadingZones: "Ladowanie stref...",
           chooseZone: "Wybierz strefe startowa",
           chooseZoneDesc: "Strefy sa pokazywane jako wygodne kafle, a po ukonczeniu znikaja z listy.",
+          chooseType: "Wybierz typ lokalizacji",
+          chooseTypeDesc: "Po wyborze strefy zawezamy proces do jednego typu lokalizacji, aby operator pracowal spojnym zakresem.",
+          chooseAisle: "Wybierz aleje startowa",
+          chooseAisleDesc: "Aleje sa liczone tylko dla wybranej strefy i typu lokalizacji.",
+          noTypes: "Brak typow lokalizacji z gotowymi pozycjami do sprawdzenia w tej strefie.",
+          noAisles: "Brak alei z gotowymi pozycjami do sprawdzenia dla tego typu lokalizacji.",
           noZones: "Brak kolejnych stref z aktywnymi lokalizacjami do sprawdzenia.",
           finishAndBack: "Zakoncz i wroc do wyboru procesu",
           confirmLocationTitle: "Potwierdz lokalizacje",
@@ -204,10 +234,13 @@ export default function EmptyLocationProcessModern() {
           scanSku: "Skanuj SKU produktu",
           scanLot: "Skanuj numer LOT",
           saveGoods: "Zapisz towar",
-          zoneFinished: "Strefa zakonczona",
-          zoneFinishedDesc: "Ta czesc magazynu zostala juz obsluzona i jest gotowa do zamkniecia.",
+          zoneFinished: "Aleja zakonczona",
+          zoneFinishedDesc: "Ta aleja zostala juz obsluzona. Mozesz przejsc do kolejnej alei w tym samym typie albo wrocic do wyboru zakresu.",
           checkedLocations: "Sprawdzone lokalizacje",
-          startNextZone: "Rozpocznij nastepna strefe",
+          startNextZone: "Wroc do wyboru strefy",
+          startNextAisle: "Rozpocznij nastepna aleje",
+          chooseAnotherAisle: "Wybierz inna aleje",
+          chooseAnotherType: "Zmien typ lokalizacji",
           scannerDescription: "Skieruj aparat na kod albo wgraj zdjecie. Odczyt trafia bezposrednio do aktualnego pola procesu pustych lokalizacji.",
           overlay: "Przetwarzam lokalizacje i zapisuje postep kontroli...",
         },
@@ -218,6 +251,8 @@ export default function EmptyLocationProcessModern() {
             { value: "Product cannot be identified", title: "No identification", description: "The product cannot be identified unambiguously." },
           ],
           zoneLabel: "Zone",
+          locationTypeLabel: "Location type",
+          aisleLabel: "Aisle",
           progressLabel: "Progress",
           currentLocationLabel: "Current location",
           loadZonesError: "Could not load zones",
@@ -239,10 +274,20 @@ export default function EmptyLocationProcessModern() {
           subtitle: "Check locations one by one, confirm empty spaces and report exceptions without leaving the flow.",
           backLabel: "Back to process selection",
           quickStartActive: "Quick start active",
-          quickStartText: "Started from location {{location}} in zone {{zone}}. The order was set {{direction}}.",
+          quickStartText:
+            "Started from location {{location}} in zone {{zone}}, type {{type}} and aisle {{aisle}}. The order was set {{direction}}.",
+          directionForward: "towards the end of the aisle",
+          directionBackward: "towards the beginning of the aisle",
+          directionNone: "with no active positions",
           loadingZones: "Loading zones...",
           chooseZone: "Choose starting zone",
           chooseZoneDesc: "Zones are shown as convenient tiles and disappear from the list once completed.",
+          chooseType: "Choose location type",
+          chooseTypeDesc: "After selecting the zone, we narrow the process to one location type so the operator stays in a consistent scope.",
+          chooseAisle: "Choose starting aisle",
+          chooseAisleDesc: "Aisles are calculated only for the selected zone and location type.",
+          noTypes: "There are no location types with ready positions to check in this zone.",
+          noAisles: "There are no aisles with ready positions to check for this location type.",
           noZones: "There are no more zones with active locations to check.",
           finishAndBack: "Finish and return to process selection",
           confirmLocationTitle: "Confirm location",
@@ -272,10 +317,13 @@ export default function EmptyLocationProcessModern() {
           scanSku: "Scan product SKU",
           scanLot: "Scan LOT number",
           saveGoods: "Save goods",
-          zoneFinished: "Zone completed",
-          zoneFinishedDesc: "This part of the warehouse has already been handled and is ready to be closed.",
+          zoneFinished: "Aisle completed",
+          zoneFinishedDesc: "This aisle has already been handled. You can move to the next aisle in the same location type or return to scope selection.",
           checkedLocations: "Checked locations",
-          startNextZone: "Start next zone",
+          startNextZone: "Back to zone selection",
+          startNextAisle: "Start next aisle",
+          chooseAnotherAisle: "Choose another aisle",
+          chooseAnotherType: "Change location type",
           scannerDescription: "Point the camera at the code or upload a photo. The result goes directly into the current empty-location process field.",
           overlay: "Processing locations and saving control progress...",
         },
@@ -286,6 +334,8 @@ export default function EmptyLocationProcessModern() {
             { value: "Produkt nicht identifizierbar", title: "Keine Identifikation", description: "Das Produkt kann nicht eindeutig erkannt werden." },
           ],
           zoneLabel: "Zone",
+          locationTypeLabel: "Lokationstyp",
+          aisleLabel: "Gang",
           progressLabel: "Fortschritt",
           currentLocationLabel: "Aktuelle Lokation",
           loadZonesError: "Zonen konnten nicht geladen werden",
@@ -307,10 +357,20 @@ export default function EmptyLocationProcessModern() {
           subtitle: "Prufe Lokationen nacheinander, bestaetige leere Plaetze und melde Ausnahmen, ohne den Flow zu verlassen.",
           backLabel: "Zuruck zur Prozessauswahl",
           quickStartActive: "Schnellstart aktiv",
-          quickStartText: "Start an Lokation {{location}} in Zone {{zone}}. Die Reihenfolge wurde {{direction}} gesetzt.",
+          quickStartText:
+            "Start an Lokation {{location}} in Zone {{zone}}, Typ {{type}} und Gang {{aisle}}. Die Reihenfolge wurde {{direction}} gesetzt.",
+          directionForward: "in Richtung Gangende",
+          directionBackward: "in Richtung Ganganfang",
+          directionNone: "ohne aktive Positionen",
           loadingZones: "Zonen werden geladen...",
           chooseZone: "Startzone wahlen",
           chooseZoneDesc: "Zonen werden als praktische Kacheln angezeigt und verschwinden nach Abschluss aus der Liste.",
+          chooseType: "Lokationstyp wahlen",
+          chooseTypeDesc: "Nach der Zonenauswahl begrenzen wir den Prozess auf einen Lokationstyp, damit der Operator in einem klaren Bereich arbeitet.",
+          chooseAisle: "Startgang wahlen",
+          chooseAisleDesc: "Gange werden nur fur die ausgewahlte Zone und den ausgewahlten Lokationstyp berechnet.",
+          noTypes: "In dieser Zone gibt es keine Lokationstypen mit prufbereiten Positionen.",
+          noAisles: "Fur diesen Lokationstyp gibt es keine Gange mit prufbereiten Positionen.",
           noZones: "Es gibt keine weiteren Zonen mit aktiven Lokationen zur Prufung.",
           finishAndBack: "Beenden und zur Prozessauswahl zuruck",
           confirmLocationTitle: "Lokation bestaetigen",
@@ -340,10 +400,13 @@ export default function EmptyLocationProcessModern() {
           scanSku: "Produkt-SKU scannen",
           scanLot: "LOT-Nummer scannen",
           saveGoods: "Ware speichern",
-          zoneFinished: "Zone abgeschlossen",
-          zoneFinishedDesc: "Dieser Teil des Lagers wurde bereits bearbeitet und ist bereit fur den Abschluss.",
+          zoneFinished: "Gang abgeschlossen",
+          zoneFinishedDesc: "Dieser Gang wurde bereits bearbeitet. Du kannst zum nachsten Gang im selben Lokationstyp wechseln oder zur Bereichsauswahl zuruckkehren.",
           checkedLocations: "Geprufte Lokationen",
-          startNextZone: "Naechste Zone starten",
+          startNextZone: "Zur Zonenauswahl zuruck",
+          startNextAisle: "Naechsten Gang starten",
+          chooseAnotherAisle: "Anderen Gang wahlen",
+          chooseAnotherType: "Lokationstyp wechseln",
           scannerDescription: "Richte die Kamera auf den Code oder lade ein Foto hoch. Das Ergebnis wird direkt in das aktuelle Feld des Leerplatz-Prozesses geschrieben.",
           overlay: "Lokationen werden verarbeitet und der Kontrollfortschritt gespeichert...",
         },
@@ -351,9 +414,18 @@ export default function EmptyLocationProcessModern() {
     [language],
   );
   const totalLocations = totalCount || queue.length;
-  const availableZones = useMemo(
-    () => zones.filter((zone) => !completedZones.includes(zone)),
-    [zones, completedZones]
+  const availableZones = useMemo(() => zones, [zones]);
+  const availableTypes = useMemo(() => locationTypes, [locationTypes]);
+  const availableAisles = useMemo(
+    () =>
+      aisles.filter(
+        (aisle) => !completedScopes.includes(buildScopeKey(selectedZone, selectedLocationType, aisle))
+      ),
+    [aisles, completedScopes, selectedLocationType, selectedZone]
+  );
+  const nextAisle = useMemo(
+    () => availableAisles.find((aisle) => aisle !== selectedAisle) || null,
+    [availableAisles, selectedAisle]
   );
 
   useEffect(() => {
@@ -423,30 +495,30 @@ export default function EmptyLocationProcessModern() {
           siteId: user.site_id,
         });
 
-        const result = await fetchEmptyLocationsForZone({
+        if (!anchorLocation.zone || !anchorLocation.location_type || !anchorLocation.aisle) {
+          throw new Error(copy.quickStartError);
+        }
+
+        const types = await fetchEmptyLocationTypes({
           zone: anchorLocation.zone,
           siteId: user.site_id,
         });
+        setLocationTypes(types);
 
-        const reordered = reorderLocationsFromAnchor(result.locations || [], anchorLocation.code);
-
-        setSelectedZone(anchorLocation.zone || "");
-        setQueue(reordered.locations);
-        setTotalCount(result.totalCount || reordered.locations.length);
-        setCurrentIndex(0);
-        setScanValue("");
-        setProblemNote("");
-        setStage(reordered.locations.length ? "scan" : "zone-finished");
-        setQuickStartInfo({
-          anchorCode: anchorLocation.code,
+        const nextAisles = await fetchEmptyLocationAisles({
           zone: anchorLocation.zone,
-          directionLabel: reordered.directionLabel,
-          startedFromExactMatch: reordered.startedFromExactMatch,
+          locationType: anchorLocation.location_type,
+          siteId: user.site_id,
         });
+        setAisles(nextAisles);
 
-        if (reordered.locations.length > 0) {
-          await activateLocation(reordered.locations[0]);
-        }
+        await beginScope({
+          zone: anchorLocation.zone,
+          locationType: anchorLocation.location_type,
+          aisle: anchorLocation.aisle,
+          anchorCode: anchorLocation.code,
+          quickStart: true,
+        });
       } catch (err) {
         setError(err.message || copy.quickStartError);
       } finally {
@@ -562,31 +634,115 @@ export default function EmptyLocationProcessModern() {
     lockedLocationIdRef.current = location.id;
   }
 
-  async function beginZone(zone) {
+  async function loadTypesForZone(zone) {
     try {
       setSubmitting(true);
-      const result = await fetchEmptyLocationsForZone({
+      const types = await fetchEmptyLocationTypes({
         zone,
         siteId: user?.site_id,
       });
-      const locations = result.locations || [];
 
       setSelectedZone(zone);
-      setQueue(locations);
-      setTotalCount(result.totalCount || locations.length);
+      setSelectedLocationType("");
+      setSelectedAisle("");
+      setLocationTypes(types);
+      setAisles([]);
+      setQueue([]);
+      setTotalCount(0);
       setCurrentIndex(0);
       setQuickStartInfo(null);
       setScanValue("");
       setDecisionScanValue("");
       setProblemNote("");
-      setError("");
+      setError(types.length === 0 ? copy.noTypes : "");
+      setStage(types.length === 0 ? "zones" : "types");
+    } catch (err) {
+      setError(err.message || copy.beginZoneError);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
-      if (locations.length === 0) {
-        setStage("zone-finished");
+  async function loadAislesForSelection(zone, locationType) {
+    try {
+      setSubmitting(true);
+      const nextAisles = await fetchEmptyLocationAisles({
+        zone,
+        locationType,
+        siteId: user?.site_id,
+      });
+
+      setSelectedZone(zone);
+      setSelectedLocationType(locationType);
+      setSelectedAisle("");
+      setAisles(nextAisles);
+      setQueue([]);
+      setTotalCount(0);
+      setCurrentIndex(0);
+      setScanValue("");
+      setDecisionScanValue("");
+      setProblemNote("");
+      setError(nextAisles.length === 0 ? copy.noAisles : "");
+      setStage(nextAisles.length === 0 ? "types" : "aisles");
+    } catch (err) {
+      setError(err.message || copy.beginZoneError);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function beginScope({ zone, locationType, aisle, anchorCode = null, quickStart = false }) {
+    try {
+      setSubmitting(true);
+      const result = await fetchEmptyLocationsForZone({
+        zone,
+        locationType,
+        aisle,
+        siteId: user?.site_id,
+      });
+      const locations = result.locations || [];
+      const orderedResult = anchorCode ? reorderLocationsFromAnchor(locations, anchorCode) : null;
+      const orderedLocations = orderedResult?.locations || locations;
+
+      setSelectedZone(zone);
+      setSelectedLocationType(locationType);
+      setSelectedAisle(aisle);
+      setQueue(orderedLocations);
+      setTotalCount(result.totalCount || orderedLocations.length);
+      setCurrentIndex(0);
+      setScanValue("");
+      setDecisionScanValue("");
+      setProblemNote("");
+      setError("");
+      setQuickStartInfo(
+        quickStart
+              ? {
+                  anchorCode,
+                  zone,
+                  locationType,
+                  aisle,
+                  directionLabel:
+                    orderedResult?.directionKey === "backward"
+                      ? copy.directionBackward
+                      : orderedResult?.directionKey === "none"
+                        ? copy.directionNone
+                        : copy.directionForward,
+                  startedFromExactMatch: orderedResult?.startedFromExactMatch || false,
+                }
+          : null
+      );
+
+      if (orderedLocations.length === 0) {
+        setCompletedScopes((current) =>
+          current.includes(buildScopeKey(zone, locationType, aisle))
+            ? current
+            : [...current, buildScopeKey(zone, locationType, aisle)]
+        );
+        setStage("scope-finished");
         return;
       }
 
-      await activateLocation(locations[0]);
+      await activateLocation(orderedLocations[0]);
       setStage("scan");
     } catch (err) {
       setError(err.message || copy.beginZoneError);
@@ -604,10 +760,12 @@ export default function EmptyLocationProcessModern() {
     setProblemNote("");
 
     if (nextIndex >= totalLocations) {
-      setCompletedZones((current) =>
-        current.includes(selectedZone) ? current : [...current, selectedZone]
+      setCompletedScopes((current) =>
+        current.includes(buildScopeKey(selectedZone, selectedLocationType, selectedAisle))
+          ? current
+          : [...current, buildScopeKey(selectedZone, selectedLocationType, selectedAisle)]
       );
-      setStage("zone-finished");
+      setStage("scope-finished");
       return;
     }
 
@@ -619,6 +777,10 @@ export default function EmptyLocationProcessModern() {
 
   function resetToZonePicker() {
     setSelectedZone("");
+    setSelectedLocationType("");
+    setSelectedAisle("");
+    setLocationTypes([]);
+    setAisles([]);
     setQueue([]);
     setTotalCount(0);
     setCurrentIndex(0);
@@ -867,6 +1029,8 @@ export default function EmptyLocationProcessModern() {
                   {copy.quickStartText
                     .replace("{{location}}", quickStartInfo.anchorCode)
                     .replace("{{zone}}", quickStartInfo.zone)
+                    .replace("{{type}}", quickStartInfo.locationType || "-")
+                    .replace("{{aisle}}", quickStartInfo.aisle || "-")
                     .replace("{{direction}}", quickStartInfo.directionLabel)}
                 </p>
               </div>
@@ -875,7 +1039,14 @@ export default function EmptyLocationProcessModern() {
         ) : null}
 
         {selectedZone ? (
-          <SummaryCard zone={selectedZone} progress={progress} location={currentLocation?.code} copy={copy} />
+          <SummaryCard
+            zone={selectedZone}
+            locationType={selectedLocationType}
+            aisle={selectedAisle}
+            progress={progress}
+            location={currentLocation?.code}
+            copy={copy}
+          />
         ) : null}
 
         {error ? <div className="input-error-text">{error}</div> : null}
@@ -905,7 +1076,7 @@ export default function EmptyLocationProcessModern() {
                     type="button"
                     className="card selectable process-zone-card"
                     disabled={submitting}
-                    onClick={() => beginZone(zone)}
+                    onClick={() => loadTypesForZone(zone)}
                   >
                     <div className="process-zone-card__value">{zone}</div>
                   </button>
@@ -916,6 +1087,78 @@ export default function EmptyLocationProcessModern() {
             <div className="process-actions">
               <Button variant="secondary" size="lg" loading={submitting} onClick={handleExitProcess}>
                 {copy.finishAndBack}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {!loading && stage === "types" ? (
+          <div className="app-card process-panel">
+            <div>
+              <h2 className="process-panel__title">{copy.chooseType}</h2>
+              <p className="process-panel__subtitle">{copy.chooseTypeDesc}</p>
+            </div>
+
+            {availableTypes.length === 0 ? (
+              <div className="app-empty-state">{copy.noTypes}</div>
+            ) : (
+              <div className="process-zone-grid">
+                {availableTypes.map((locationType) => (
+                  <button
+                    key={locationType}
+                    type="button"
+                    className="card selectable process-zone-card"
+                    disabled={submitting}
+                    onClick={() => loadAislesForSelection(selectedZone, locationType)}
+                  >
+                    <div className="process-zone-card__value">{locationType}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="process-actions">
+              <Button variant="secondary" size="lg" onClick={resetToZonePicker}>
+                {copy.startNextZone}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {!loading && stage === "aisles" ? (
+          <div className="app-card process-panel">
+            <div>
+              <h2 className="process-panel__title">{copy.chooseAisle}</h2>
+              <p className="process-panel__subtitle">{copy.chooseAisleDesc}</p>
+            </div>
+
+            {availableAisles.length === 0 ? (
+              <div className="app-empty-state">{copy.noAisles}</div>
+            ) : (
+              <div className="process-zone-grid">
+                {availableAisles.map((aisle) => (
+                  <button
+                    key={aisle}
+                    type="button"
+                    className="card selectable process-zone-card"
+                    disabled={submitting}
+                    onClick={() =>
+                      beginScope({
+                        zone: selectedZone,
+                        locationType: selectedLocationType,
+                        aisle,
+                      })
+                    }
+                  >
+                    <div className="process-zone-card__value">{aisle}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="process-actions">
+              <Button variant="secondary" size="lg" onClick={() => setStage("types")}>
+                {copy.chooseAnotherType}
               </Button>
             </div>
           </div>
@@ -1161,7 +1404,7 @@ export default function EmptyLocationProcessModern() {
           </div>
         ) : null}
 
-        {stage === "zone-finished" ? (
+        {stage === "scope-finished" ? (
           <div className="app-card process-stage-card">
             <div className="process-stage-header">
               <div className="process-stage-header__icon">
@@ -1179,14 +1422,39 @@ export default function EmptyLocationProcessModern() {
                 <div className="process-meta-item__value">{selectedZone || "-"}</div>
               </div>
               <div className="process-meta-item">
+                  <div className="process-meta-item__label">{copy.locationTypeLabel}</div>
+                <div className="process-meta-item__value">{selectedLocationType || "-"}</div>
+              </div>
+              <div className="process-meta-item">
+                  <div className="process-meta-item__label">{copy.aisleLabel}</div>
+                <div className="process-meta-item__value">{selectedAisle || "-"}</div>
+              </div>
+              <div className="process-meta-item">
                   <div className="process-meta-item__label">{copy.checkedLocations}</div>
                 <div className="process-meta-item__value">{totalLocations}</div>
               </div>
             </div>
 
             <div className="process-actions">
-              <Button size="lg" onClick={resetToZonePicker}>
-                {copy.startNextZone}
+              {nextAisle ? (
+                <Button
+                  size="lg"
+                  onClick={() =>
+                    beginScope({
+                      zone: selectedZone,
+                      locationType: selectedLocationType,
+                      aisle: nextAisle,
+                    })
+                  }
+                >
+                  {copy.startNextAisle}
+                </Button>
+              ) : null}
+              <Button variant="secondary" size="lg" onClick={() => setStage("aisles")}>
+                {copy.chooseAnotherAisle}
+              </Button>
+              <Button variant="secondary" size="lg" onClick={() => setStage("types")}>
+                {copy.chooseAnotherType}
               </Button>
               <Button variant="secondary" size="lg" loading={submitting} onClick={handleExitProcess}>
                 {copy.finishAndBack}

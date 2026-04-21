@@ -259,6 +259,24 @@ export async function buildLocationsImportPreview(file, mappingConfig) {
       fieldConfig: mappingConfig?.fields?.zone,
       fallbackAliases: ["zone", "strefa"],
     }),
+    aisle: resolveMappedValue({
+      row,
+      rawRow: rawRows[index],
+      fieldConfig: mappingConfig?.fields?.aisle,
+      fallbackAliases: ["aisle", "aleja", "korytarz"],
+    }),
+    level: resolveMappedValue({
+      row,
+      rawRow: rawRows[index],
+      fieldConfig: mappingConfig?.fields?.level,
+      fallbackAliases: ["level", "poziom", "poziom_lokacji"],
+    }),
+    location_type: resolveMappedValue({
+      row,
+      rawRow: rawRows[index],
+      fieldConfig: mappingConfig?.fields?.location_type,
+      fallbackAliases: ["location_type", "typ_lokalizacji", "type", "typ"],
+    }),
     status:
       resolveMappedValue({
         row,
@@ -283,6 +301,18 @@ export async function buildLocationsImportPreview(file, mappingConfig) {
       errors.push("Brak strefy");
     }
 
+    if (!row.aisle) {
+      errors.push("Brak alei");
+    }
+
+    if (!row.level) {
+      errors.push("Brak poziomu");
+    }
+
+    if (!row.location_type) {
+      errors.push("Brak typu lokalizacji");
+    }
+
     if (normalizedCode) {
       const duplicateKey = normalizedCode.toUpperCase();
       if (seen.has(duplicateKey)) {
@@ -300,6 +330,9 @@ export async function buildLocationsImportPreview(file, mappingConfig) {
     valid.push({
       code: normalizedCode,
       zone: String(row.zone || "").trim(),
+      aisle: String(row.aisle || "").trim(),
+      level: String(row.level || "").trim(),
+      location_type: String(row.location_type || "").trim(),
       status: String(row.status || "active").trim() || "active",
     });
   });

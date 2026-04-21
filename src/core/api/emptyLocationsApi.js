@@ -20,39 +20,133 @@ function isLocationReadyStatus(status) {
   return !normalized || normalized === "active" || normalized === "pending";
 }
 
-export async function fetchEmptyLocationZones({ siteId } = {}) {
-  const safeSiteId = normalizeSiteId(siteId);
+async function fetchSiteStockLocationIds(siteId) {
   const pageSize = 1000;
   const rows = [];
-  let from = 0;
+  let offset = 0;
 
   while (true) {
-    const to = from + pageSize - 1;
     const { data, error } = await applySiteFilter(
-      supabase.from("locations").select("zone, status"),
-      safeSiteId
-    ).range(from, to);
+      supabase.from("stock").select("location_id"),
+      siteId
+    ).range(offset, offset + pageSize - 1);
 
     if (error) {
-      console.error("FETCH EMPTY ZONES ERROR:", error);
-      throw new Error(error.message || "Blad pobierania stref");
+      console.error("FETCH STOCK FOR EMPTY LOCATIONS ERROR:", error);
+      throw new Error(error.message || "Blad pobierania stocku");
     }
 
-    const chunk = unwrapRpcRows(data);
-    rows.push(...chunk);
-
-    if (chunk.length < pageSize) {
+    if (!data?.length) {
       break;
     }
 
-    from += pageSize;
+    rows.push(...data);
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    offset += pageSize;
   }
+
+  return new Set(rows.map((row) => row.location_id).filter(Boolean));
+}
+
+async function fetchFilteredEmptyLocations({
+  siteId,
+  zone = null,
+  locationType = null,
+  aisle = null,
+} = {}) {
+  const safeSiteId = normalizeSiteId(siteId);
+  const pageSize = 1000;
+  const allLocations = [];
+  let offset = 0;
+  const occupiedIds = await fetchSiteStockLocationIds(safeSiteId);
+
+  while (true) {
+    let query = applySiteFilter(
+      supabase
+        .from("locations")
+        .select("id, code, zone, aisle, level, location_type, status, locked_by, locked_at, session_id, site_id")
+        .order("code", { ascending: true }),
+      safeSiteId
+    );
+
+    if (zone) {
+      query = query.eq("zone", zone);
+    }
+
+    if (locationType) {
+      query = query.eq("location_type", locationType);
+    }
+
+    if (aisle) {
+      query = query.eq("aisle", aisle);
+    }
+
+    const { data, error } = await query.range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error("FETCH EMPTY LOCATIONS PAGE ERROR:", error);
+      throw new Error(error.message || "Blad pobierania lokalizacji");
+    }
+
+    if (!data?.length) {
+      break;
+    }
+
+    allLocations.push(...data);
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    offset += pageSize;
+  }
+
+  return allLocations.filter(
+    (row) => isLocationReadyStatus(row.status) && !occupiedIds.has(row.id)
+  );
+}
+
+export async function fetchEmptyLocationZones({ siteId } = {}) {
+  const rows = await fetchFilteredEmptyLocations({ siteId });
   const zones = rows
-    .filter((row) => isLocationReadyStatus(row.status) || !("status" in row))
     .map((row) => String(row.zone || "").trim())
     .filter(Boolean);
 
   return [...new Set(zones)].sort((left, right) => left.localeCompare(right));
+}
+
+export async function fetchEmptyLocationTypes({ zone, siteId } = {}) {
+  if (!zone) {
+    return [];
+  }
+
+  const rows = await fetchFilteredEmptyLocations({ siteId, zone });
+  const locationTypes = rows
+    .map((row) => String(row.location_type || "").trim())
+    .filter(Boolean);
+
+  return [...new Set(locationTypes)].sort((left, right) => left.localeCompare(right));
+}
+
+export async function fetchEmptyLocationAisles({ zone, locationType, siteId } = {}) {
+  if (!zone || !locationType) {
+    return [];
+  }
+
+  const rows = await fetchFilteredEmptyLocations({
+    siteId,
+    zone,
+    locationType,
+  });
+  const aisles = rows
+    .map((row) => String(row.aisle || "").trim())
+    .filter(Boolean);
+
+  return [...new Set(aisles)].sort((left, right) => left.localeCompare(right));
 }
 
 export async function fetchQuickStartAnchorLocation({ code, siteId } = {}) {
@@ -66,7 +160,7 @@ export async function fetchQuickStartAnchorLocation({ code, siteId } = {}) {
   let query = applySiteFilter(
     supabase
       .from("locations")
-      .select("id, code, zone, status, locked_by, locked_at, session_id, site_id")
+      .select("id, code, zone, aisle, level, location_type, status, locked_by, locked_at, session_id, site_id")
       .eq("code", normalizedCode)
       .limit(1)
       .maybeSingle(),
@@ -87,78 +181,22 @@ export async function fetchQuickStartAnchorLocation({ code, siteId } = {}) {
   return data;
 }
 
-export async function fetchEmptyLocationsForZone({ zone, siteId } = {}) {
-  if (!zone) {
+export async function fetchEmptyLocationsForZone({
+  zone,
+  locationType = null,
+  aisle = null,
+  siteId,
+} = {}) {
+  if (!zone || !locationType || !aisle) {
     return { locations: [], totalCount: 0 };
   }
 
-  const safeSiteId = normalizeSiteId(siteId);
-  const pageSize = 1000;
-  const allLocations = [];
-  let offset = 0;
-
-  const stockRows = [];
-  let stockOffset = 0;
-
-  while (true) {
-    const { data, error: stockError } = await applySiteFilter(
-      supabase.from("stock").select("location_id"),
-      safeSiteId
-    ).range(stockOffset, stockOffset + pageSize - 1);
-
-    if (stockError) {
-      console.error("FETCH STOCK FOR EMPTY LOCATIONS ERROR:", stockError);
-      throw new Error(stockError.message || "Blad pobierania stocku");
-    }
-
-    if (!data?.length) {
-      break;
-    }
-
-    stockRows.push(...data);
-
-    if (data.length < pageSize) {
-      break;
-    }
-
-    stockOffset += pageSize;
-  }
-
-  while (true) {
-    let query = applySiteFilter(
-      supabase
-        .from("locations")
-        .select("id, code, zone, status, locked_by, locked_at, site_id")
-        .eq("zone", zone)
-        .order("code", { ascending: true })
-        .range(offset, offset + pageSize - 1),
-      safeSiteId
-    );
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("FETCH EMPTY LOCATIONS PAGE ERROR:", error);
-      throw new Error(error.message || "Blad pobierania lokalizacji");
-    }
-
-    if (!data?.length) {
-      break;
-    }
-
-    allLocations.push(...data);
-
-    if (data.length < pageSize) {
-      break;
-    }
-
-    offset += pageSize;
-  }
-
-  const occupiedIds = new Set((stockRows || []).map((row) => row.location_id).filter(Boolean));
-  const emptyLocations = allLocations.filter(
-    (row) => isLocationReadyStatus(row.status) && !occupiedIds.has(row.id)
-  );
+  const emptyLocations = await fetchFilteredEmptyLocations({
+    siteId,
+    zone,
+    locationType,
+    aisle,
+  });
 
   return {
     locations: emptyLocations,

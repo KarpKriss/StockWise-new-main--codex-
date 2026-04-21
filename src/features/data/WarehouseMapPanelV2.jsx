@@ -7,6 +7,8 @@ import { exportToCSV } from "../../utils/csvExport";
 import {
   addWarehouseLocation,
   deleteWarehouseLocation,
+  fetchLocationAisles,
+  fetchLocationTypes,
   fetchLocationZones,
   fetchLocationsPage,
   replaceLocations,
@@ -29,6 +31,9 @@ const COPY = {
     importSuccess: "Zaimportowano {{count}} lokalizacji.",
     promptCode: "Kod lokalizacji",
     promptZone: "Strefa",
+    promptAisle: "Aleja",
+    promptLevel: "Poziom",
+    promptType: "Typ lokalizacji",
     title: "Mapa magazynu",
     resetAction: "Resetuj mape magazynu",
     resetSelectedAction: "Resetuj zaznaczone",
@@ -74,7 +79,16 @@ const COPY = {
     statusResetWarehouseLoading: "Przywracam status calego magazynu do pending...",
     importLoading: "Analizuje plik mapy magazynu i przygotowuje podglad importu...",
     processingMessage: "Resetuje mape i importuje nowy zestaw lokalizacji...",
-    columns: { code: "Lokalizacja", zone: "Strefa", status: "Status" },
+    allTypes: "Wszystkie typy",
+    allAisles: "Wszystkie aleje",
+    columns: {
+      code: "Lokalizacja",
+      zone: "Strefa",
+      aisle: "Aleja",
+      level: "Poziom",
+      location_type: "Typ lokalizacji",
+      status: "Status",
+    },
   },
   en: {
     loadError: "Could not load the warehouse map",
@@ -82,6 +96,9 @@ const COPY = {
     importSuccess: "Imported {{count}} locations.",
     promptCode: "Location code",
     promptZone: "Zone",
+    promptAisle: "Aisle",
+    promptLevel: "Level",
+    promptType: "Location type",
     title: "Warehouse map",
     resetAction: "Reset warehouse map",
     resetSelectedAction: "Reset selected",
@@ -127,7 +144,16 @@ const COPY = {
     statusResetWarehouseLoading: "Resetting the whole warehouse back to pending...",
     importLoading: "Analyzing the warehouse map file and preparing the import preview...",
     processingMessage: "Resetting the map and importing the new location set...",
-    columns: { code: "Location", zone: "Zone", status: "Status" },
+    allTypes: "All location types",
+    allAisles: "All aisles",
+    columns: {
+      code: "Location",
+      zone: "Zone",
+      aisle: "Aisle",
+      level: "Level",
+      location_type: "Location type",
+      status: "Status",
+    },
   },
   de: {
     loadError: "Lagerkarte konnte nicht geladen werden",
@@ -135,6 +161,9 @@ const COPY = {
     importSuccess: "{{count}} Lokationen wurden importiert.",
     promptCode: "Lokationscode",
     promptZone: "Zone",
+    promptAisle: "Gang",
+    promptLevel: "Ebene",
+    promptType: "Lokationstyp",
     title: "Lagerkarte",
     resetAction: "Lagerkarte zurucksetzen",
     resetSelectedAction: "Auswahl zurucksetzen",
@@ -180,7 +209,16 @@ const COPY = {
     statusResetWarehouseLoading: "Der Status des gesamten Lagers wird auf pending zuruckgesetzt...",
     importLoading: "Datei der Lagerkarte wird analysiert und Importvorschau wird vorbereitet...",
     processingMessage: "Karte wird zuruckgesetzt und neuer Lokationssatz wird importiert...",
-    columns: { code: "Lokation", zone: "Zone", status: "Status" },
+    allTypes: "Alle Lokationstypen",
+    allAisles: "Alle Gange",
+    columns: {
+      code: "Lokation",
+      zone: "Zone",
+      aisle: "Gang",
+      level: "Ebene",
+      location_type: "Lokationstyp",
+      status: "Status",
+    },
   },
 };
 
@@ -192,9 +230,13 @@ export default function WarehouseMapPanel() {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("code");
   const [zoneFilter, setZoneFilter] = useState("all");
+  const [locationTypeFilter, setLocationTypeFilter] = useState("all");
+  const [aisleFilter, setAisleFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [zones, setZones] = useState([]);
+  const [locationTypes, setLocationTypes] = useState([]);
+  const [aisles, setAisles] = useState([]);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -214,6 +256,8 @@ export default function WarehouseMapPanel() {
         limit,
         search,
         zone: zoneFilter,
+        locationType: locationTypeFilter,
+        aisle: aisleFilter,
         sortKey,
       });
       setRows(response.data);
@@ -231,7 +275,7 @@ export default function WarehouseMapPanel() {
 
   useEffect(() => {
     loadRows();
-  }, [page, search, zoneFilter, sortKey]);
+  }, [page, search, zoneFilter, locationTypeFilter, aisleFilter, sortKey]);
 
   useEffect(() => {
     async function loadZones() {
@@ -245,9 +289,55 @@ export default function WarehouseMapPanel() {
     loadZones();
   }, []);
 
+  useEffect(() => {
+    async function loadTypes() {
+      try {
+        setLocationTypes(
+          await fetchLocationTypes({
+            zone: zoneFilter,
+          })
+        );
+      } catch (err) {
+        console.error("WAREHOUSE TYPES LOAD ERROR:", err);
+      }
+    }
+
+    loadTypes();
+  }, [zoneFilter]);
+
+  useEffect(() => {
+    async function loadAisles() {
+      try {
+        setAisles(
+          await fetchLocationAisles({
+            zone: zoneFilter,
+            locationType: locationTypeFilter,
+          })
+        );
+      } catch (err) {
+        console.error("WAREHOUSE AISLES LOAD ERROR:", err);
+      }
+    }
+
+    loadAisles();
+  }, [zoneFilter, locationTypeFilter]);
+
   async function refreshZones() {
     const nextZones = await fetchLocationZones();
     setZones(nextZones);
+  }
+
+  async function refreshLocationTypes() {
+    const nextTypes = await fetchLocationTypes({ zone: zoneFilter });
+    setLocationTypes(nextTypes);
+  }
+
+  async function refreshAisles() {
+    const nextAisles = await fetchLocationAisles({
+      zone: zoneFilter,
+      locationType: locationTypeFilter,
+    });
+    setAisles(nextAisles);
   }
 
   useEffect(() => {
@@ -290,6 +380,8 @@ export default function WarehouseMapPanel() {
       setPreview(null);
       setPage(1);
       await refreshZones();
+      await refreshLocationTypes();
+      await refreshAisles();
     } catch (err) {
       alert(err.message);
     } finally {
@@ -300,13 +392,25 @@ export default function WarehouseMapPanel() {
   const handleAdd = async () => {
     const code = window.prompt(copy.promptCode);
     const zone = window.prompt(copy.promptZone);
+    const aisle = window.prompt(copy.promptAisle);
+    const level = window.prompt(copy.promptLevel);
+    const locationType = window.prompt(copy.promptType);
 
-    if (!code || !zone) return;
+    if (!code || !zone || !aisle || !level || !locationType) return;
 
     try {
-      await addWarehouseLocation({ code, zone, status: "active" });
+      await addWarehouseLocation({
+        code,
+        zone,
+        aisle,
+        level,
+        location_type: locationType,
+        status: "active",
+      });
       setPage(1);
       await refreshZones();
+      await refreshLocationTypes();
+      await refreshAisles();
       if (page === 1) {
         await loadRows();
       }
@@ -403,6 +507,8 @@ export default function WarehouseMapPanel() {
         alert(copy.deleteSuccess.replace("{{code}}", confirmModal.row.code));
         setSelectedRowIds((current) => current.filter((id) => id !== confirmModal.row.id));
         await refreshZones();
+        await refreshLocationTypes();
+        await refreshAisles();
         if (page === 1) {
           await loadRows();
         }
@@ -413,6 +519,10 @@ export default function WarehouseMapPanel() {
         setPage(1);
         setSearch("");
         setZoneFilter("all");
+        setLocationTypeFilter("all");
+        setAisleFilter("all");
+        setLocationTypes([]);
+        setAisles([]);
         setSelectedRowIds([]);
         await refreshZones();
         alert(copy.resetSuccess);
@@ -457,6 +567,9 @@ export default function WarehouseMapPanel() {
         columns={[
           { key: "code", label: copy.columns.code },
           { key: "zone", label: copy.columns.zone },
+          { key: "aisle", label: copy.columns.aisle },
+          { key: "level", label: copy.columns.level },
+          { key: "location_type", label: copy.columns.location_type },
           { key: "status", label: copy.columns.status },
         ]}
         data={rows}
@@ -468,9 +581,34 @@ export default function WarehouseMapPanel() {
         onLocationChange={(value) => {
           setPage(1);
           setZoneFilter(value);
+          setLocationTypeFilter("all");
+          setAisleFilter("all");
         }}
         locationsList={zones}
         locationValue={zoneFilter}
+        additionalFilters={[
+          {
+            key: "location-type",
+            value: locationTypeFilter,
+            onChange: (value) => {
+              setPage(1);
+              setLocationTypeFilter(value);
+              setAisleFilter("all");
+            },
+            options: locationTypes,
+            allLabel: copy.allTypes,
+          },
+          {
+            key: "aisle",
+            value: aisleFilter,
+            onChange: (value) => {
+              setPage(1);
+              setAisleFilter(value);
+            },
+            options: aisles,
+            allLabel: copy.allAisles,
+          },
+        ]}
         onImport={openImport}
         onExport={() =>
           exportToCSV({
@@ -535,6 +673,9 @@ export default function WarehouseMapPanel() {
           columns={[
             { key: "code", label: copy.columns.code },
             { key: "zone", label: copy.columns.zone },
+            { key: "aisle", label: copy.columns.aisle },
+            { key: "level", label: copy.columns.level },
+            { key: "location_type", label: copy.columns.location_type },
             { key: "status", label: copy.columns.status },
           ]}
           getRowKey={(row, index) => `${row.code || "code"}-${index}`}

@@ -50,6 +50,19 @@ function resolveSupportedFormats(formats) {
     .filter((value) => value !== undefined);
 }
 
+function buildScannerOptions(formats) {
+  const supportedFormats = resolveSupportedFormats(formats);
+
+  if (!supportedFormats.length) {
+    return { verbose: false };
+  }
+
+  return {
+    formatsToSupport: supportedFormats,
+    verbose: false,
+  };
+}
+
 async function startScannerInstance({ scanner, preferBackCamera, onDetected }) {
   const onDecode = (decodedText, decodedResult) => {
     const normalizedValue = String(decodedText || "").trim();
@@ -198,10 +211,10 @@ export default function BarcodeScannerModal({
           return;
         }
 
-        const scanner = new window.Html5Qrcode(readerId, {
-          formatsToSupport: resolveSupportedFormats(formats),
-          verbose: false,
-        });
+        const scanner = new window.Html5Qrcode(
+          readerId,
+          buildScannerOptions(formats)
+        );
 
         scannerRef.current = scanner;
         await startScannerInstance({
